@@ -2,11 +2,13 @@
 #define BRAKELIGHTS 4
 #define LEFT_SIGNAL 7
 #define RIGHT_SIGNAL 8
-
 #define HAZARDS_BUTTON 3
 
-bool hazardsOn = false;
-int recordedTime = millis();
+bool hazardsToggledOn = false;
+bool hazardsLightsOn = false;
+bool hazardButtonState = HIGH;
+unsigned long recordedTime = 0;
+
 void setup() {
   // put your setup code here, to run once:
   pinMode(HEADLIGHTS, OUTPUT);
@@ -24,16 +26,23 @@ void loop() {
   digitalWrite(LEFT_SIGNAL, LOW);
   digitalWrite(RIGHT_SIGNAL, LOW);
 
-  if (digitalRead(HAZARDS_BUTTON) == LOW) {
-    hazardsOn = true;
-    recordedTime = millis();
+  bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
 
-    while (digitalRead(HAZARDS_BUTTON) == LOW) {
-      setHazards(hazardsOn);
-      if (millis() - recordedTime >= 750) {
-        hazardsOn = !hazardsOn;
-        recordedTime = millis();
-      }
+ if (hazardButtonState != hazardButtonReading) {
+    hazardButtonState = hazardButtonReading;
+
+    if (hazardButtonState == LOW) {
+      hazardsToggledOn = !hazardsToggledOn;
+      hazardsLightsOn = hazardsToggledOn;
+      recordedTime = millis();
+    }
+  }
+
+  setHazards(hazardsLightsOn);
+  if (hazardsToggledOn) {
+    if (millis() - recordedTime >= 750) {
+      hazardsLightsOn = !hazardsLightsOn;
+      recordedTime = millis();
     }
   }
 }
