@@ -5,6 +5,8 @@
 #define HAZARDS_BUTTON 2
 #define GAS_PEDAL_DIGITAL 12 // Testing as digital, will be switched to analog eventually
 #define BRAKE_PEDAL_DIGITAL 13 // Testing as digital, will be switched to analog eventually
+#define HEADLIGHTS_LOW_SWITCH 7
+#define HEADLIGHTS_HIGH_SWITCH 8
 
 bool hazardsToggledOn = false;
 bool hazardsLightsOn = false;
@@ -20,8 +22,8 @@ void setup() {
   pinMode(HAZARDS_BUTTON, INPUT_PULLUP);
   pinMode(GAS_PEDAL_DIGITAL, INPUT_PULLUP);
   pinMode(BRAKE_PEDAL_DIGITAL, INPUT_PULLUP);
-  
-  analogWrite(HEADLIGHTS, 128);
+  pinMode(HEADLIGHTS_LOW_SWITCH, INPUT_PULLUP);
+  pinMode(HEADLIGHTS_HIGH_SWITCH, INPUT_PULLUP);
 }
 
 void loop() {
@@ -30,6 +32,7 @@ void loop() {
   analogWrite(RIGHT_SIGNAL, 0);
 
   handleHazardsButton();
+  handleHeadlights();
   handleGasPedal();
   handleBrakePedal();
 }
@@ -63,6 +66,16 @@ void setHazards(bool hazardsOn) {
   } else {
     analogWrite(LEFT_SIGNAL, 0);
     analogWrite(RIGHT_SIGNAL, 0);
+  }
+}
+
+void handleHeadlights(void) {
+  if (digitalRead(HEADLIGHTS_LOW_SWITCH) == LOW) {
+    analogWrite(HEADLIGHTS, 255);
+  } else if (digitalRead(HEADLIGHTS_HIGH_SWITCH) == LOW) {
+    analogWrite(HEADLIGHTS, 0);
+  } else {
+    analogWrite(HEADLIGHTS, 128);
   }
 }
 
