@@ -1,10 +1,10 @@
-#define HEADLIGHTS 2
-#define BRAKELIGHTS 4
-#define LEFT_SIGNAL 7
-#define RIGHT_SIGNAL 8
-#define HAZARDS_BUTTON 3
-#define GAS_PEDAL 5
-#define BRAKE_PEDAL 6
+#define HEADLIGHTS 3
+#define BRAKELIGHTS 9
+#define LEFT_SIGNAL 5
+#define RIGHT_SIGNAL 6
+#define HAZARDS_BUTTON 2
+#define GAS_PEDAL_DIGITAL 12 // Testing as digital, will be switched to analog eventually
+#define BRAKE_PEDAL_DIGITAL 13 // Testing as digital, will be switched to analog eventually
 
 bool hazardsToggledOn = false;
 bool hazardsLightsOn = false;
@@ -18,17 +18,16 @@ void setup() {
   pinMode(LEFT_SIGNAL, OUTPUT);
   pinMode(RIGHT_SIGNAL, OUTPUT);
   pinMode(HAZARDS_BUTTON, INPUT_PULLUP);
-  pinMode(GAS_PEDAL, INPUT_PULLUP);
-  pinMode(BRAKE_PEDAL, INPUT_PULLUP);
+  pinMode(GAS_PEDAL_DIGITAL, INPUT_PULLUP);
+  pinMode(BRAKE_PEDAL_DIGITAL, INPUT_PULLUP);
   
-  digitalWrite(HEADLIGHTS, HIGH);
-  digitalWrite(BRAKELIGHTS, LOW);
+  analogWrite(HEADLIGHTS, 128);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  digitalWrite(LEFT_SIGNAL, LOW);
-  digitalWrite(RIGHT_SIGNAL, LOW);
+  analogWrite(LEFT_SIGNAL, 0);
+  analogWrite(RIGHT_SIGNAL, 0);
 
   bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
 
@@ -51,23 +50,23 @@ void loop() {
   }
 
   // Gas and brakes
-  if (digitalRead(GAS_PEDAL) == HIGH) {
+  if (digitalRead(GAS_PEDAL_DIGITAL) == HIGH) {
     // do nothing...
   }
 
-  if (digitalRead(BRAKE_PEDAL) == LOW) {
-    digitalWrite(BRAKELIGHTS, HIGH);
+  if (digitalRead(BRAKE_PEDAL_DIGITAL) == LOW) {
+    analogWrite(BRAKELIGHTS, 255);
   } else {
-    digitalWrite(BRAKELIGHTS, LOW);
+    analogWrite(BRAKELIGHTS, 128);
   }
 }
 
 void setHazards(bool hazardsOn) {
   if (hazardsOn) {
-    digitalWrite(LEFT_SIGNAL, HIGH);
-    digitalWrite(RIGHT_SIGNAL, HIGH);
+    analogWrite(LEFT_SIGNAL, 255);
+    analogWrite(RIGHT_SIGNAL, 255);
   } else {
-    digitalWrite(LEFT_SIGNAL, LOW);
-    digitalWrite(RIGHT_SIGNAL, LOW);
+    analogWrite(LEFT_SIGNAL, 0);
+    analogWrite(RIGHT_SIGNAL, 0);
   }
 }
