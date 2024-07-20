@@ -29,9 +29,15 @@ void loop() {
   analogWrite(LEFT_SIGNAL, 0);
   analogWrite(RIGHT_SIGNAL, 0);
 
+  handleHazardsButton();
+  handleGasPedal();
+  handleBrakePedal();
+}
+
+void handleHazardsButton(void) {
   bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
 
- if (hazardButtonState != hazardButtonReading) {
+  if (hazardButtonState != hazardButtonReading) {
     hazardButtonState = hazardButtonReading;
 
     if (hazardButtonState == LOW) {
@@ -48,17 +54,6 @@ void loop() {
       recordedTime = millis();
     }
   }
-
-  // Gas and brakes
-  if (digitalRead(GAS_PEDAL_DIGITAL) == HIGH) {
-    // do nothing...
-  }
-
-  if (digitalRead(BRAKE_PEDAL_DIGITAL) == LOW) {
-    analogWrite(BRAKELIGHTS, 255);
-  } else {
-    analogWrite(BRAKELIGHTS, 128);
-  }
 }
 
 void setHazards(bool hazardsOn) {
@@ -68,5 +63,21 @@ void setHazards(bool hazardsOn) {
   } else {
     analogWrite(LEFT_SIGNAL, 0);
     analogWrite(RIGHT_SIGNAL, 0);
+  }
+}
+
+// TODO
+void handleGasPedal(void) {
+  if (digitalRead(GAS_PEDAL_DIGITAL) == HIGH) {
+    // do nothing...
+  }
+}
+
+// TODO
+void handleBrakePedal(void) {
+  if (digitalRead(BRAKE_PEDAL_DIGITAL) == LOW) {
+    analogWrite(BRAKELIGHTS, 255);
+  } else {
+    analogWrite(BRAKELIGHTS, 128);
   }
 }
