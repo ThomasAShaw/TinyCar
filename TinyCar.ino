@@ -1,14 +1,14 @@
 #define HEADLIGHTS 3
-#define BRAKELIGHTS 9
+#define BRAKELIGHTS 4
 #define LEFT_SIGNAL_LIGHT 5
 #define RIGHT_SIGNAL_LIGHT 6
 #define HAZARDS_BUTTON 2
-#define GAS_PEDAL_DIGITAL 12 // Testing as digital, will be switched to analog eventually
-#define BRAKE_PEDAL_DIGITAL 13 // Testing as digital, will be switched to analog eventually
-#define HEADLIGHTS_LOW_SWITCH 7
-#define HEADLIGHTS_HIGH_SWITCH 8
-#define LEFT_SIGNAL_SWITCH 10
-#define RIGHT_SIGNAL_SWITCH 11
+#define GAS_PEDAL_DIGITAL A0 // Testing as digital, will be switched to analog eventually
+#define BRAKE_PEDAL_DIGITAL A1 // Testing as digital, will be switched to analog eventually
+#define HEADLIGHTS_LOW_SWITCH A4
+#define HEADLIGHTS_HIGH_SWITCH A5
+#define LEFT_SIGNAL_SWITCH A2
+#define RIGHT_SIGNAL_SWITCH A3
 
 #define SIGNAL_TIMING_MS 750
 
@@ -89,7 +89,7 @@ void handleHeadlights(void) {
 
 // TODO
 void handleGasPedal(void) {
-  if (digitalRead(GAS_PEDAL_DIGITAL) == HIGH) {
+  if (digitalRead(GAS_PEDAL_DIGITAL) == LOW) {
     // do nothing...
   }
 }
@@ -99,6 +99,6 @@ void handleBrakePedal(void) {
   if (digitalRead(BRAKE_PEDAL_DIGITAL) == LOW) {
     analogWrite(BRAKELIGHTS, 255);
   } else {
-    analogWrite(BRAKELIGHTS, 128);
+    analogWrite(BRAKELIGHTS, 0);
   }
 }
