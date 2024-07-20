@@ -3,6 +3,8 @@
 #define LEFT_SIGNAL 7
 #define RIGHT_SIGNAL 8
 #define HAZARDS_BUTTON 3
+#define GAS_PEDAL 5
+#define BRAKE_PEDAL 6
 
 bool hazardsToggledOn = false;
 bool hazardsLightsOn = false;
@@ -16,6 +18,8 @@ void setup() {
   pinMode(LEFT_SIGNAL, OUTPUT);
   pinMode(RIGHT_SIGNAL, OUTPUT);
   pinMode(HAZARDS_BUTTON, INPUT_PULLUP);
+  pinMode(GAS_PEDAL, INPUT_PULLUP);
+  pinMode(BRAKE_PEDAL, INPUT_PULLUP);
   
   digitalWrite(HEADLIGHTS, HIGH);
   digitalWrite(BRAKELIGHTS, LOW);
@@ -44,6 +48,17 @@ void loop() {
       hazardsLightsOn = !hazardsLightsOn;
       recordedTime = millis();
     }
+  }
+
+  // Gas and brakes
+  if (digitalRead(GAS_PEDAL) == HIGH) {
+    // do nothing...
+  }
+
+  if (digitalRead(BRAKE_PEDAL) == LOW) {
+    digitalWrite(BRAKELIGHTS, HIGH);
+  } else {
+    digitalWrite(BRAKELIGHTS, LOW);
   }
 }
 
