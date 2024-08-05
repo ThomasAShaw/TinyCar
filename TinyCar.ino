@@ -15,6 +15,9 @@
 #define MAX_SPEED 200.0
 #define MAX_RPM 8000.0
 
+#define PI 3.14159
+#define CM_IN_KM 100000
+
 bool hazardsToggledOn = false;
 bool leftSignalToggledOn = false;
 bool rightSignalToggledOn = false;
@@ -109,29 +112,31 @@ void handleHeadlights(void) {
   }
 }
 
-// TODO: handle more realistically and with analog control
+// TODO: handle more realistically RPM and with analog control
 void handlePedals(void) {
   bool gasPressed = digitalRead(GAS_PEDAL_DIGITAL) == LOW;
   bool brakePressed = digitalRead(BRAKE_PEDAL_DIGITAL) == LOW;
 
   // Update RPM
-  if (gasPressed) {
-    currentRPM = min(MAX_RPM, currentRPM + 50.0);
-  } else {
-    currentRPM = max(0.0, currentRPM - 50.0);
-  }
-
-  // Update speed
   if (brakePressed) {
     analogWrite(BRAKELIGHTS, 255);
-    currentSpeed = max(0.0, currentSpeed - 1.0);
+    currentRPM = max(0.0, currentRPM - 100.0);
   } else {
     analogWrite(BRAKELIGHTS, 0);
 
     if (gasPressed) {
-      currentSpeed = min(MAX_SPEED, currentSpeed + 1.0);
+      currentRPM = min(MAX_RPM, currentRPM + 50.0);
     } else { // Speed more gradually decreases
-      currentSpeed = max(0.0, currentSpeed - 0.5);
+      currentRPM = max(0.0, currentRPM - 25.0);
     }
   }
+
+  // Speed calculation based off RPM
+  // FIXME: test values, replace with real ones.
+  float finalDriveRatio = 3.58;
+  float currentTransRatio = 3.49;
+  float tireDiameterCM = 60.1;
+
+  float wheelRPM = currentRPM / (currentTransRatio * finalDriveRatio);
+  currentSpeed = (wheelRPM * tireDiameterCM * 60 * PI) / CM_IN_KM;
 }
