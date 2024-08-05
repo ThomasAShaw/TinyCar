@@ -12,11 +12,20 @@
 
 #define SIGNAL_TIMING_MS 750
 #define PEDAL_TIMING_MS 100
-#define MAX_SPEED 200.0
-#define MAX_RPM 8000.0
 
 #define PI 3.14159
 #define CM_IN_KM 100000
+
+// Car-specific stats - potential FIXME
+const float MAX_SPEED = 200.0;
+const float IDLE_RPM = 800.0;
+const float MAX_RPM = 8000.0;
+const float GAS_INCREASE_RPM_RATE = 100.0;
+const float BRAKE_DECREASE_RPM_RATE = 150.0;
+const float IDLE_DECREASE_RPM_RATE = 50.0;
+const float FINAL_DRIVE_RATIO = 3.58;
+const float TRANS_RATIOS[] = {3.49, 1.99, 1.45, 1.00, 0.71, 3.99}; // 1, 2, 3, 4, 5, R
+const float TIRE_DIAMETER_CM = 60.1;
 
 bool hazardsToggledOn = false;
 bool leftSignalToggledOn = false;
@@ -112,31 +121,27 @@ void handleHeadlights(void) {
   }
 }
 
-// TODO: handle more realistically RPM and with analog control
+// TODO: handle more realistically with analog control + transmission
 void handlePedals(void) {
   bool gasPressed = digitalRead(GAS_PEDAL_DIGITAL) == LOW;
   bool brakePressed = digitalRead(BRAKE_PEDAL_DIGITAL) == LOW;
+  float currentTransRatio = TRANS_RATIOS[0]; // FIXME when transmission is added
 
-  // Update RPM
+  // Update RPM based off pedals
   if (brakePressed) {
     analogWrite(BRAKELIGHTS, 255);
-    currentRPM = max(0.0, currentRPM - 100.0);
+    currentRPM = max(IDLE_RPM, currentRPM - BRAKE_DECREASE_RPM_RATE);
   } else {
     analogWrite(BRAKELIGHTS, 0);
 
     if (gasPressed) {
-      currentRPM = min(MAX_RPM, currentRPM + 50.0);
+      currentRPM = min(MAX_RPM, currentRPM + GAS_INCREASE_RPM_RATE);
     } else { // Speed more gradually decreases
-      currentRPM = max(0.0, currentRPM - 25.0);
+      currentRPM = max(IDLE_RPM, currentRPM - IDLE_DECREASE_RPM_RATE);
     }
   }
 
   // Speed calculation based off RPM
-  // FIXME: test values, replace with real ones.
-  float finalDriveRatio = 3.58;
-  float currentTransRatio = 3.49;
-  float tireDiameterCM = 60.1;
-
-  float wheelRPM = currentRPM / (currentTransRatio * finalDriveRatio);
-  currentSpeed = (wheelRPM * tireDiameterCM * 60 * PI) / CM_IN_KM;
+  float wheelRPM = currentRPM / (currentTransRatio * FINAL_DRIVE_RATIO);
+  currentSpeed = (wheelRPM * TIRE_DIAMETER_CM * 60 * PI) / CM_IN_KM;
 }
