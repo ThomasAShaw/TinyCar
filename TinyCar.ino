@@ -11,6 +11,9 @@
 #define RIGHT_SIGNAL_SWITCH A3
 
 #define SIGNAL_TIMING_MS 750
+#define PEDAL_TIMING_MS 100
+#define MAX_SPEED 200.0
+#define MAX_RPM 8000.0
 
 bool hazardsToggledOn = false;
 bool leftSignalToggledOn = false;
@@ -18,6 +21,10 @@ bool rightSignalToggledOn = false;
 bool signalLightsOn = false;
 bool hazardButtonState = HIGH;
 unsigned long signalTime = 0;
+unsigned long pedalTime = 0;
+unsigned int pedalsCheckedCount = 0;
+float currentSpeed = 0.0;
+float currentRPM = 0.0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -32,13 +39,28 @@ void setup() {
   pinMode(HEADLIGHTS_HIGH_SWITCH, INPUT_PULLUP);
   pinMode(LEFT_SIGNAL_SWITCH, INPUT_PULLUP);
   pinMode(RIGHT_SIGNAL_SWITCH, INPUT_PULLUP);
+
+  Serial.begin(9600);
 }
 
 void loop() {
   handleTurnSignals();
   handleHeadlights();
-  handleGasPedal();
-  handleBrakePedal();
+  if (millis() - pedalTime >= PEDAL_TIMING_MS) {
+    handlePedals();
+
+    pedalTime = millis();
+    pedalsCheckedCount++;
+
+    if (pedalsCheckedCount >= 10) {
+      Serial.println("Current Speed:");
+      Serial.println(currentSpeed);
+      Serial.println("Current RPM:");
+      Serial.println(currentRPM);
+
+      pedalsCheckedCount = 0;
+    }
+  }
 }
 
 void handleTurnSignals(void) {
@@ -87,18 +109,29 @@ void handleHeadlights(void) {
   }
 }
 
-// TODO
-void handleGasPedal(void) {
-  if (digitalRead(GAS_PEDAL_DIGITAL) == LOW) {
-    // do nothing...
-  }
-}
+// TODO: handle more realistically and with analog control
+void handlePedals(void) {
+  bool gasPressed = digitalRead(GAS_PEDAL_DIGITAL) == LOW;
+  bool brakePressed = digitalRead(BRAKE_PEDAL_DIGITAL) == LOW;
 
-// TODO
-void handleBrakePedal(void) {
-  if (digitalRead(BRAKE_PEDAL_DIGITAL) == LOW) {
+  // Update RPM
+  if (gasPressed) {
+    currentRPM = min(MAX_RPM, currentRPM + 50.0);
+  } else {
+    currentRPM = max(0.0, currentRPM - 50.0);
+  }
+
+  // Update speed
+  if (brakePressed) {
     analogWrite(BRAKELIGHTS, 255);
+    currentSpeed = max(0.0, currentSpeed - 1.0);
   } else {
     analogWrite(BRAKELIGHTS, 0);
+
+    if (gasPressed) {
+      currentSpeed = min(MAX_SPEED, currentSpeed + 1.0);
+    } else { // Speed more gradually decreases
+      currentSpeed = max(0.0, currentSpeed - 0.5);
+    }
   }
 }
