@@ -1,3 +1,7 @@
+#include "SPI.h"
+#include "Adafruit_GFX.h"
+#include "Adafruit_ILI9341.h"
+
 #define HEADLIGHTS 3
 #define BRAKELIGHTS 4
 #define LEFT_SIGNAL_LIGHT 5
@@ -9,6 +13,9 @@
 #define HEADLIGHTS_HIGH_SWITCH A5
 #define LEFT_SIGNAL_SWITCH A2
 #define RIGHT_SIGNAL_SWITCH A3
+#define TFT_DC 9
+#define TFT_CS 10
+#define TFT_RST 8
 
 #define SIGNAL_TIMING_MS 750
 #define PEDAL_TIMING_MS 100
@@ -37,6 +44,9 @@ unsigned long pedalTime = 0;
 unsigned int pedalsCheckedCount = 0;
 float currentSpeed = 0.0;
 float currentRPM = 0.0;
+int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
+
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
 void setup() {
   // put your setup code here, to run once:
@@ -53,6 +63,9 @@ void setup() {
   pinMode(RIGHT_SIGNAL_SWITCH, INPUT_PULLUP);
 
   Serial.begin(9600);
+
+  // Setup screen
+  setupScreen();
 }
 
 void loop() {
@@ -60,6 +73,7 @@ void loop() {
   handleHeadlights();
   if (millis() - pedalTime >= PEDAL_TIMING_MS) {
     handlePedals();
+    updateScreen();
 
     pedalTime = millis();
     pedalsCheckedCount++;
@@ -73,6 +87,50 @@ void loop() {
       pedalsCheckedCount = 0;
     }
   }
+}
+
+void setupScreen(void) {
+  // deselect all SPI devices
+  pinMode(TFT_CS, OUTPUT);
+  digitalWrite(TFT_CS, HIGH);
+  tft.begin();
+
+  tft.setRotation(1);
+  tft.fillScreen(ILI9341_BLACK);
+  tft.setTextSize(2);
+  tft.setTextColor(ILI9341_WHITE);
+}
+
+void updateScreen(void) {
+  //tft.fillScreen(ILI9341_BLACK);
+
+  // Speed Output
+  tft.fillRect(80, 10, 200, 20, ILI9341_BLACK);
+  tft.setCursor(10, 10);
+  tft.print("Speed: ");
+  tft.print(currentSpeed);
+  tft.println(" km/h");
+
+  // RPM output
+  tft.fillRect(40, 50, 150, 20, ILI9341_BLACK);
+  tft.setCursor(10, 50);
+  tft.print("RPM: ");
+  tft.print(currentRPM);
+
+  // Gear output
+  tft.fillRect(80, 90, 100, 20, ILI9341_BLACK);
+  tft.setCursor(10, 90);
+  tft.print("Gear: ");
+  char charGear = '?';
+  if (currentGear >= 0 && currentGear <= 4) {
+    charGear = '1' + currentGear;
+  } else if (currentGear == 5) {
+    charGear = 'R';
+  } else if (currentGear == 6) {
+    charGear == 'N';
+  }
+
+  tft.print(charGear);
 }
 
 void handleTurnSignals(void) {
@@ -125,7 +183,7 @@ void handleHeadlights(void) {
 void handlePedals(void) {
   bool gasPressed = digitalRead(GAS_PEDAL_DIGITAL) == LOW;
   bool brakePressed = digitalRead(BRAKE_PEDAL_DIGITAL) == LOW;
-  float currentTransRatio = TRANS_RATIOS[0]; // FIXME when transmission is added
+  float currentTransRatio = TRANS_RATIOS[currentGear]; // FIXME when transmission is added
 
   // Update RPM based off pedals
   if (brakePressed) {
