@@ -102,7 +102,14 @@ void setupScreen(void) {
 }
 
 void updateScreen(void) {
-  //tft.fillScreen(ILI9341_BLACK);
+  // Update speed
+
+  // Update RPM
+
+  // Update gear indicator
+
+  // Update fuel, turn sginals, hazards, etc.
+
 
   // Speed Output
   tft.fillRect(80, 10, 200, 20, ILI9341_BLACK);
