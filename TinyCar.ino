@@ -9,7 +9,7 @@
 #define HAZARDS_BUTTON 2
 #define GAS_PEDAL_DIGITAL A0 // Testing as digital, will be switched to analog eventually
 #define BRAKE_PEDAL_DIGITAL A1 // Testing as digital, will be switched to analog eventually
-#define HEADLIGHTS_LOW_SWITCH A4
+#define HEADLIGHTS_OFF_SWITCH A4
 #define HEADLIGHTS_HIGH_SWITCH A5
 #define LEFT_SIGNAL_SWITCH A2
 #define RIGHT_SIGNAL_SWITCH A3
@@ -22,6 +22,12 @@
 
 #define PI 3.14159
 #define CM_IN_KM 100000
+
+enum HeadlightState {
+  HEADLIGHTS_OFF,
+  HEADLIGHTS_LOW,
+  HEADLIGHTS_HIGH
+};
 
 // Car-specific stats - potential FIXME
 const float MAX_SPEED = 250.0;
@@ -67,6 +73,8 @@ const uint16_t FUEL_BAR_X = SCREEN_CENTRE_X - 2 * (FUEL_BAR_SIZE + 2) - FUEL_BAR
 const uint16_t FUEL_BAR_Y = SCREEN_CENTRE_Y - 55;
 const uint16_t FUEL_ICON_X = SCREEN_CENTRE_X - 7;
 const uint16_t FUEL_ICON_Y = SCREEN_CENTRE_Y - 45;
+const uint16_t LIGHT_ICON_X = SCREEN_CENTRE_X;
+const uint16_t LIGHT_ICON_Y = SCREEN_CENTRE_Y - 5;
 
 bool hazardsToggledOn = false;
 bool leftSignalSwitchOn = false;
@@ -79,6 +87,7 @@ float currentSpeed = 0.0;
 float currentRPM = 0.0;
 int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
 float currentFuelLevel = 100.0;
+HeadlightState currentHeadlightState = HEADLIGHTS_OFF;
 
 float oldSpeed = currentSpeed;
 float oldRPM = currentRPM;
@@ -95,7 +104,7 @@ void setup() {
   pinMode(HAZARDS_BUTTON, INPUT_PULLUP);
   pinMode(GAS_PEDAL_DIGITAL, INPUT_PULLUP);
   pinMode(BRAKE_PEDAL_DIGITAL, INPUT_PULLUP);
-  pinMode(HEADLIGHTS_LOW_SWITCH, INPUT_PULLUP);
+  pinMode(HEADLIGHTS_OFF_SWITCH, INPUT_PULLUP);
   pinMode(HEADLIGHTS_HIGH_SWITCH, INPUT_PULLUP);
   pinMode(LEFT_SIGNAL_SWITCH, INPUT_PULLUP);
   pinMode(RIGHT_SIGNAL_SWITCH, INPUT_PULLUP);
@@ -294,6 +303,48 @@ void drawFuelPump(int x, int y, uint16_t color) {
   tft.drawLine(x + 15, y + 5, x + 13, y + 2, color);
 }
 
+void drawHighBeams(int x, int y, uint16_t color) {
+  tft.fillCircle(x, y, 10, color);
+  tft.fillRect(x - 10, y - 11, 10, 22, BACKGROUND_COLOUR);
+  tft.fillCircle(x, y, 8, BACKGROUND_COLOUR);
+  tft.drawLine(x, y - 10, x, y + 10, color);
+  tft.drawLine(x - 1, y - 10, x - 1, y + 10, color);
+
+  // Horizontal Lines
+  tft.drawLine(x - 4, y - 9, x - 10, y - 9, color);
+  tft.drawLine(x - 4, y - 8, x - 10, y - 8, color);
+  tft.drawLine(x - 4, y - 5, x - 10, y - 5, color);
+  tft.drawLine(x - 4, y - 4, x - 10, y - 4, color);
+  tft.drawLine(x - 4, y - 1, x - 10, y - 1, color);
+  tft.drawLine(x - 4, y, x - 10, y, color);
+  tft.drawLine(x - 4, y + 3, x - 10, y + 3, color);
+  tft.drawLine(x - 4, y + 4, x - 10, y + 4, color);
+  tft.drawLine(x - 4, y + 7, x - 10, y + 7, color);
+  tft.drawLine(x - 4, y + 8, x - 10, y + 8, color);
+}
+
+void drawHeadlights(int x, int y, uint16_t color) {
+  tft.fillCircle(x, y, 10, color);
+  tft.fillRect(x - 10, y - 11, 10, 22, BACKGROUND_COLOUR);
+  tft.fillCircle(x, y, 8, BACKGROUND_COLOUR);
+  tft.drawLine(x, y - 10, x, y + 10, color);
+  tft.drawLine(x - 1, y - 10, x - 1, y + 10, color);
+
+  // Diagonal Lines
+  tft.drawLine(x - 4, y - 9, x - 10, y - 8, color);
+  tft.drawLine(x - 4, y - 8, x - 10, y - 7, color);
+  tft.drawLine(x - 4, y - 5, x - 10, y - 4, color);
+  tft.drawLine(x - 4, y - 4, x - 10, y - 3, color);
+  
+  tft.drawLine(x - 4, y - 1, x - 10, y, color);
+  tft.drawLine(x - 4, y, x - 10, y + 1, color);
+
+  tft.drawLine(x - 4, y + 3, x - 10, y + 4, color);
+  tft.drawLine(x - 4, y + 4, x - 10, y + 5, color);
+  tft.drawLine(x - 4, y + 7, x - 10, y + 8, color);
+  tft.drawLine(x - 4, y + 8, x - 10, y + 9, color);
+}
+
 
 void handleTurnSignals(void) {
   readSignalInputs();
@@ -338,12 +389,33 @@ void readSignalInputs(void) {
 }
 
 void handleHeadlights(void) {
-  if (digitalRead(HEADLIGHTS_LOW_SWITCH) == LOW) {
-    analogWrite(HEADLIGHTS, 255);
-  } else if (digitalRead(HEADLIGHTS_HIGH_SWITCH) == LOW) {
-    analogWrite(HEADLIGHTS, 0);
+  HeadlightState newHeadlightState;
+
+  if (digitalRead(HEADLIGHTS_HIGH_SWITCH) == LOW) {
+    newHeadlightState = HEADLIGHTS_HIGH;
+  } else if (digitalRead(HEADLIGHTS_OFF_SWITCH) == LOW) {
+    newHeadlightState = HEADLIGHTS_OFF;
   } else {
-    analogWrite(HEADLIGHTS, 128);
+    newHeadlightState = HEADLIGHTS_LOW;
+  }
+
+  if (newHeadlightState != currentHeadlightState) {
+    switch(newHeadlightState) {
+      case(HEADLIGHTS_OFF):
+        drawHeadlights(LIGHT_ICON_X, LIGHT_ICON_Y, ILI9341_RED);
+        analogWrite(HEADLIGHTS, 0);
+        break;
+      case(HEADLIGHTS_LOW):
+        drawHeadlights(LIGHT_ICON_X, LIGHT_ICON_Y, ILI9341_GREEN);
+        analogWrite(HEADLIGHTS, 128);
+        break;
+      case(HEADLIGHTS_HIGH):
+        drawHighBeams(LIGHT_ICON_X, LIGHT_ICON_Y, ILI9341_BLUE);
+        analogWrite(HEADLIGHTS, 255);
+        break;
+    }
+
+    currentHeadlightState = newHeadlightState;
   }
 }
 
