@@ -75,6 +75,8 @@ const uint16_t FUEL_ICON_X = SCREEN_CENTRE_X - 7;
 const uint16_t FUEL_ICON_Y = SCREEN_CENTRE_Y - 45;
 const uint16_t LIGHT_ICON_X = SCREEN_CENTRE_X;
 const uint16_t LIGHT_ICON_Y = SCREEN_CENTRE_Y - 5;
+const uint16_t ODOMETER_X = SCREEN_CENTRE_X - 16;
+const uint16_t ODOMETER_Y = SCREEN_CENTRE_Y + 18;
 
 bool hazardsToggledOn = false;
 bool leftSignalSwitchOn = false;
@@ -88,6 +90,7 @@ float currentRPM = 0.0;
 int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
 float currentFuelLevel = 100.0;
 HeadlightState currentHeadlightState = HEADLIGHTS_OFF;
+float currentOdometerKM = 999999.0;
 
 float oldSpeed = currentSpeed;
 float oldRPM = currentRPM;
@@ -156,6 +159,13 @@ void setupScreen(void) {
 
   drawFuelPump(FUEL_ICON_X, FUEL_ICON_Y, ILI9341_WHITE);
   updateFuelBar(4); // TODO: Update fuel dynamically
+
+  // Odometer KM
+  updateOdometer(); // TODO: Update odometer dynamically
+  tft.setTextSize(1);
+  tft.setTextColor(ILI9341_WHITE, BACKGROUND_COLOUR);
+  tft.setCursor(ODOMETER_X + 12, ODOMETER_Y + 10);
+  tft.print("KM");
 
   updateScreen();
 }
@@ -255,6 +265,42 @@ void updateTachometer(void) {
   }
 
   oldRPM = currentRPM;
+}
+
+void updateOdometer(void) {
+  // Clamp to displayable range
+  int odometerDisplayedKM;
+  if (currentOdometerKM > 999999) {
+    odometerDisplayedKM = 999999;
+  } else if (currentOdometerKM < 0) {
+    odometerDisplayedKM = 0;
+  } else {
+    odometerDisplayedKM = (int) currentOdometerKM;
+  }
+
+  char kmStr[7];
+  sprintf(kmStr, "%06d", odometerDisplayedKM);
+
+  tft.fillRect(ODOMETER_X, ODOMETER_Y, 24, 8, BACKGROUND_COLOUR);
+
+  // Draw leading zeroes as greyed out
+  tft.setTextSize(1);
+  tft.setTextColor(ILI9341_RED, BACKGROUND_COLOUR);
+  tft.setCursor(ODOMETER_X, ODOMETER_Y);
+  
+  int numZeroes = 0;
+  for (int i = 0; i < 6; i++) {
+    if (kmStr[i] == '0') {
+      tft.print('0');
+      numZeroes++;
+    } else {
+      break;
+    }
+  }
+
+  // Draw the actual number in the normal color
+  tft.setTextColor(GAUGE_COLOUR, BACKGROUND_COLOUR);
+  tft.print(&kmStr[numZeroes]);
 }
 
 void updateTurnSignalIcons(bool leftSignalOn, bool rightSignalOn) {
