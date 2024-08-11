@@ -55,9 +55,15 @@ const uint16_t GAUGE_COLOUR = ILI9341_WHITE;
 const uint16_t BACKGROUND_COLOUR = ILI9341_BLACK;
 const uint16_t NEEDLE_COLOUR = ILI9341_RED;
 
+const uint16_t SIGNAL_SIZE = 10;  // Size of the triangle signals
+const uint16_t LEFT_SIGNAL_X = SCREEN_CENTRE_X - 2 * (SIGNAL_SIZE + 6);
+const uint16_t LEFT_SIGNAL_Y = SCREEN_CENTRE_Y - 75;
+const uint16_t RIGHT_SIGNAL_X = SCREEN_CENTRE_X + 2 * (SIGNAL_SIZE + 6);
+const uint16_t RIGHT_SIGNAL_Y = SCREEN_CENTRE_Y - 75;
+
 bool hazardsToggledOn = false;
-bool leftSignalToggledOn = false;
-bool rightSignalToggledOn = false;
+bool leftSignalSwitchOn = false;
+bool rightSignalSwitchOn = false;
 bool signalLightsOn = false;
 bool hazardButtonState = HIGH;
 unsigned long signalTime = 0;
@@ -224,28 +230,49 @@ void updateTachometer(void) {
   oldRPM = currentRPM;
 }
 
-void handleTurnSignals(void) {
-  if (!hazardsToggledOn && !leftSignalToggledOn && !rightSignalToggledOn) {
-    // Ensures timing resets if a switch/button is toggled on
-    signalTime = millis() - SIGNAL_TIMING_MS;
+void updateTurnSignalIcons(bool leftSignalOn, bool rightSignalOn) {
+  drawArrow(LEFT_SIGNAL_X, LEFT_SIGNAL_Y, SIGNAL_SIZE, leftSignalOn ? ILI9341_GREEN : BACKGROUND_COLOUR, true);
+  drawArrow(RIGHT_SIGNAL_X, RIGHT_SIGNAL_Y, SIGNAL_SIZE, rightSignalOn ? ILI9341_GREEN : BACKGROUND_COLOUR, false);
+}
+
+void drawArrow(int x, int y, int size, int color, bool pointingLeft) {
+  if (pointingLeft) {
+    tft.fillTriangle(x, y, x + size, y + size / 2, x + size, y - size / 2, color);
+    tft.fillRect(x + size, y - (size / 4), size, size / 2, color);
+  } else {
+    tft.fillTriangle(x, y, x - size, y + size / 2, x - size, y - size / 2, color);
+    tft.fillRect(x - (2 * size), y - (size / 4), size, size / 2, color);
   }
+}
 
+void handleTurnSignals(void) {
   readSignalInputs();
-  analogWrite(LEFT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || leftSignalToggledOn)) ? 255 : 0);
-  analogWrite(RIGHT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || rightSignalToggledOn)) ? 255 : 0);
+  bool shouldToggleLights = (hazardsToggledOn || leftSignalSwitchOn || rightSignalSwitchOn);
 
-  if (hazardsToggledOn || leftSignalToggledOn || rightSignalToggledOn) {
+  if (shouldToggleLights) {
     if (millis() - signalTime >= SIGNAL_TIMING_MS) {
-      signalLightsOn = !signalLightsOn;
-      signalTime = millis();
+    signalTime = millis();
+    signalLightsOn = !signalLightsOn;
+
+    analogWrite(LEFT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || leftSignalSwitchOn)) ? 255 : 0);
+    analogWrite(RIGHT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || rightSignalSwitchOn)) ? 255 : 0);
+    updateTurnSignalIcons(signalLightsOn && (hazardsToggledOn || leftSignalSwitchOn), signalLightsOn && (hazardsToggledOn || rightSignalSwitchOn));
     }
+  } else if (signalLightsOn) { // Should turn lights off (as no switches are active now)
+    // Ensures timing resets if a switch/button is toggled on at some point in future
+    signalLightsOn = false;
+    signalTime = millis() - SIGNAL_TIMING_MS;
+
+    analogWrite(LEFT_SIGNAL_LIGHT, 0);
+    analogWrite(RIGHT_SIGNAL_LIGHT, 0);
+    updateTurnSignalIcons(false, false);
   }
 }
 
 void readSignalInputs(void) {
   // Individual switches
-  leftSignalToggledOn = digitalRead(LEFT_SIGNAL_SWITCH) == LOW;
-  rightSignalToggledOn = digitalRead(RIGHT_SIGNAL_SWITCH) == LOW;
+  leftSignalSwitchOn = digitalRead(LEFT_SIGNAL_SWITCH) == LOW;
+  rightSignalSwitchOn = digitalRead(RIGHT_SIGNAL_SWITCH) == LOW;
 
   // Hazard light button reading (press toggles it)
   bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
@@ -255,7 +282,6 @@ void readSignalInputs(void) {
 
     if (hazardButtonState == LOW) {
       hazardsToggledOn = !hazardsToggledOn;
-      signalLightsOn = signalLightsOn;
     }
   }
 }
