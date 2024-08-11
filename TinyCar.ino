@@ -90,7 +90,7 @@ float currentRPM = 0.0;
 int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
 float currentFuelLevel = 100.0;
 HeadlightState currentHeadlightState = HEADLIGHTS_OFF;
-float currentOdometerKM = 999999.0;
+float currentOdometerKM = 999998.0;
 
 float oldSpeed = currentSpeed;
 float oldRPM = currentRPM;
@@ -269,17 +269,18 @@ void updateTachometer(void) {
 
 void updateOdometer(void) {
   // Clamp to displayable range
-  int odometerDisplayedKM;
-  if (currentOdometerKM > 999999) {
-    odometerDisplayedKM = 999999;
-  } else if (currentOdometerKM < 0) {
-    odometerDisplayedKM = 0;
+  uint32_t displayedOdometerKM;
+  if (currentOdometerKM >= 999999.0) {
+    displayedOdometerKM = 999999;
+  } else if (currentOdometerKM < 0.0) {
+    displayedOdometerKM = 0;
   } else {
-    odometerDisplayedKM = (int) currentOdometerKM;
+    displayedOdometerKM = (uint32_t) currentOdometerKM;
   }
 
+  Serial.print(currentOdometerKM);
   char kmStr[7];
-  sprintf(kmStr, "%06d", odometerDisplayedKM);
+  sprintf(kmStr, "%06lu", displayedOdometerKM);
 
   tft.fillRect(ODOMETER_X, ODOMETER_Y, 24, 8, BACKGROUND_COLOUR);
 
