@@ -60,6 +60,13 @@ const uint16_t LEFT_SIGNAL_X = SCREEN_CENTRE_X - 2 * (SIGNAL_SIZE + 6);
 const uint16_t LEFT_SIGNAL_Y = SCREEN_CENTRE_Y - 75;
 const uint16_t RIGHT_SIGNAL_X = SCREEN_CENTRE_X + 2 * (SIGNAL_SIZE + 6);
 const uint16_t RIGHT_SIGNAL_Y = SCREEN_CENTRE_Y - 75;
+const uint16_t HAZARD_SIGNAL_X = SCREEN_CENTRE_X;
+const uint16_t HAZARD_SIGNAL_Y = SCREEN_CENTRE_Y - 75;
+const uint16_t FUEL_BAR_SIZE = 6;
+const uint16_t FUEL_BAR_X = SCREEN_CENTRE_X - 2 * (FUEL_BAR_SIZE + 2) - FUEL_BAR_SIZE / 2;
+const uint16_t FUEL_BAR_Y = SCREEN_CENTRE_Y - 55;
+const uint16_t FUEL_ICON_X = SCREEN_CENTRE_X - 7;
+const uint16_t FUEL_ICON_Y = SCREEN_CENTRE_Y - 45;
 
 bool hazardsToggledOn = false;
 bool leftSignalSwitchOn = false;
@@ -71,6 +78,7 @@ unsigned long pedalTime = 0;
 float currentSpeed = 0.0;
 float currentRPM = 0.0;
 int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
+float currentFuelLevel = 100.0;
 
 float oldSpeed = currentSpeed;
 float oldRPM = currentRPM;
@@ -129,6 +137,17 @@ void setupScreen(void) {
   tft.setCursor(TACHO_CENTRE_X - 16, TACHO_CENTRE_Y + 50);
   tft.print("x1000");
 
+  // Fuel Icon + E & F
+  tft.setTextSize(1);
+  tft.setTextColor(ILI9341_WHITE, BACKGROUND_COLOUR);
+  tft.setCursor(FUEL_BAR_X, FUEL_BAR_Y + FUEL_BAR_SIZE + 4);
+  tft.print("E");
+  tft.setCursor(FUEL_BAR_X + 4 * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y + FUEL_BAR_SIZE + 4);
+  tft.print("F");
+
+  drawFuelPump(FUEL_ICON_X, FUEL_ICON_Y, ILI9341_WHITE);
+  updateFuelBar(4); // TODO: Update fuel dynamically
+
   updateScreen();
 }
 
@@ -143,8 +162,7 @@ void updateScreen(void) {
     updateTachometer();
   }
 
-  // TODO Update fuel, turn signals, hazards, etc.
-
+  // TODO: Odometer (DYNAMICALLY)
 }
 
 void updateSpeedometer(void) {
@@ -245,6 +263,38 @@ void drawArrow(int x, int y, int size, int color, bool pointingLeft) {
   }
 }
 
+void updateHazardsIcon(bool toggledOn) {
+  tft.drawTriangle(HAZARD_SIGNAL_X, HAZARD_SIGNAL_Y - 4, HAZARD_SIGNAL_X - 4, HAZARD_SIGNAL_Y + 4, HAZARD_SIGNAL_X + 4, HAZARD_SIGNAL_Y + 4, toggledOn ? ILI9341_RED : BACKGROUND_COLOUR);
+  tft.drawTriangle(HAZARD_SIGNAL_X, HAZARD_SIGNAL_Y - 8, HAZARD_SIGNAL_X - 7, HAZARD_SIGNAL_Y + 6, HAZARD_SIGNAL_X + 7, HAZARD_SIGNAL_Y + 6, toggledOn ? ILI9341_RED : BACKGROUND_COLOUR);
+}
+
+// From 0-5, where 0 is empty, and 5 is full.
+void updateFuelBar(int fuelLevel) {
+  if (fuelLevel > 5) fuelLevel = 5;
+  if (fuelLevel < 0) fuelLevel = 0;
+
+  for (int i = 0; i < 5; i++) {
+    if (fuelLevel > i) {
+      tft.fillRect(FUEL_BAR_X + i * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y, FUEL_BAR_SIZE, FUEL_BAR_SIZE, ILI9341_WHITE);
+    } else {
+      tft.fillRect(FUEL_BAR_X + i * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y, FUEL_BAR_SIZE, FUEL_BAR_SIZE, BACKGROUND_COLOUR);
+      tft.drawRect(FUEL_BAR_X + i * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y, FUEL_BAR_SIZE, FUEL_BAR_SIZE, ILI9341_WHITE);
+    }
+  }
+}
+
+void drawFuelPump(int x, int y, uint16_t color) {
+  tft.fillRoundRect(x, y, 12, 16, 1, color);
+  tft.fillRoundRect(x - 3, y + 14, 18, 2, 1, color);
+  tft.fillRect(x + 2, y + 3, 8, 4, BACKGROUND_COLOUR);
+  tft.drawPixel(x + 12, y + 6, color);
+  tft.drawLine(x + 13, y + 7, x + 13, y + 11, color);
+  tft.drawPixel(x + 14, y + 12, color);
+  tft.drawLine(x + 15, y + 11, x + 15, y + 5, color);
+  tft.drawLine(x + 15, y + 5, x + 13, y + 2, color);
+}
+
+
 void handleTurnSignals(void) {
   readSignalInputs();
   bool shouldToggleLights = (hazardsToggledOn || leftSignalSwitchOn || rightSignalSwitchOn);
@@ -282,6 +332,7 @@ void readSignalInputs(void) {
 
     if (hazardButtonState == LOW) {
       hazardsToggledOn = !hazardsToggledOn;
+      updateHazardsIcon(hazardsToggledOn);
     }
   }
 }
