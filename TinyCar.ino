@@ -44,21 +44,18 @@ const float TIRE_DIAMETER_CM = 60.1;
 const uint16_t SCREEN_CENTRE_X = 160;
 const uint16_t SCREEN_CENTRE_Y = 120;
 const uint16_t GAUGE_OUTER_RADIUS = 65;
-const uint16_t GAUGE_CENTRE_RADIUS = 30;
+const uint16_t GAUGE_CENTRE_RADIUS = 28;
 const uint16_t SPEEDO_CENTRE_X = SCREEN_CENTRE_X - GAUGE_OUTER_RADIUS - 20;
 const uint16_t SPEEDO_CENTRE_Y = SCREEN_CENTRE_Y - 20;
 const uint16_t TACHO_CENTRE_X = SCREEN_CENTRE_X + GAUGE_OUTER_RADIUS + 20;
 const uint16_t TACHO_CENTRE_Y = SCREEN_CENTRE_Y - 20;
-const uint16_t MAJOR_TICK_LENGTH = 10;
-const uint16_t MINOR_TICK_LENGTH = 5;
+const uint16_t TICK_LENGTH = 7;
 const uint16_t NEEDLE_BASE_WIDTH = 6;
 const uint16_t TICK_LABEL_OFFSET = 10;
 
 const uint16_t TICK_TEXT_SIZE = 1;
 const uint16_t GAUGE_BOTTOM_OFFSET_ANGLE = 30; // degrees
 
-const uint16_t MAJOR_TICK_COLOUR = ILI9341_WHITE;
-const uint16_t MINOR_TICK_COLOUR = ILI9341_YELLOW;
 const uint16_t GAUGE_PRIMARY_COLOUR = ILI9341_WHITE;
 const uint16_t GAUGE_SECONDARY_COLOUR = ILI9341_RED;
 const uint16_t BACKGROUND_COLOUR = ILI9341_BLACK;
@@ -146,6 +143,13 @@ void setupScreen(void) {
   tft.setRotation(1);
   tft.fillScreen(BACKGROUND_COLOUR);
 
+  tft.fillRect(FUEL_BAR_X - 16, FUEL_BAR_Y - 4, 72, 34, MIDDLE_BACKGROUND_COLOUR);
+  tft.fillRect(ODOMETER_X - 42, ODOMETER_Y - 5, 116, 26, MIDDLE_BACKGROUND_COLOUR);
+  tft.fillRect(LIGHT_ICON_X - 24, LIGHT_ICON_Y - 13, 60, 27, MIDDLE_BACKGROUND_COLOUR);
+
+  drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed);
+  drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000);
+
   // Tachometer RPM text
   tft.setTextSize(1);
   tft.setTextColor(ILI9341_ORANGE, BACKGROUND_COLOUR);
@@ -158,7 +162,6 @@ void setupScreen(void) {
   updateTurnSignalIcons(false, false);
 
   // Fuel Icon + E & F
-  tft.fillRect(FUEL_BAR_X - 16, FUEL_BAR_Y - 4, 72, 34, MIDDLE_BACKGROUND_COLOUR);
   tft.setTextSize(1);
   tft.setTextColor(ILI9341_WHITE, MIDDLE_BACKGROUND_COLOUR);
   tft.setCursor(FUEL_BAR_X, FUEL_BAR_Y + FUEL_BAR_SIZE + 4);
@@ -170,18 +173,11 @@ void setupScreen(void) {
   updateFuelBar(4); // TODO: Update fuel dynamically
 
   // Odometer KM
-  tft.fillRect(ODOMETER_X - 42, ODOMETER_Y - 5, 116, 26, MIDDLE_BACKGROUND_COLOUR);
   updateOdometer(); // TODO: Update odometer dynamically
   tft.setTextSize(1);
   tft.setTextColor(ILI9341_WHITE, MIDDLE_BACKGROUND_COLOUR);
   tft.setCursor(ODOMETER_X + 12, ODOMETER_Y + 10);
   tft.print("KM");
-
-  //Headlights
-  tft.fillRect(LIGHT_ICON_X - 24, LIGHT_ICON_Y - 13, 60, 27, MIDDLE_BACKGROUND_COLOUR);
-
-  drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed);
-  drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000);
 
   updateScreen();
 }
@@ -519,32 +515,31 @@ void drawGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int ne
   int numTicks = 2 * (maxValue / majorTickIncrement);
   numTicks += (maxValue % majorTickIncrement == 0) ? 1 : 2; // Inclusive zero, and add an extra if there's a last minor tick
 
-  int innerRadius = outerRadius - 6; // Radius of circle for ticks
+  int innerRadius = outerRadius - 7; // Radius of circle for ticks
 
   for (int i = 0; i < numTicks; i++) {
     int tickVal = (i / 2) * majorTickIncrement;
     bool isMajorTick = ((i % 2) == 0);
     int angle = map(i, 0, numTicks - 1, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-    int length = isMajorTick ? MAJOR_TICK_LENGTH : MINOR_TICK_LENGTH;
-    int colour = isMajorTick ? MAJOR_TICK_COLOUR : MINOR_TICK_COLOUR;
+    int colour = isMajorTick ? GAUGE_SECONDARY_COLOUR : GAUGE_PRIMARY_COLOUR;
 
-    drawTick(gaugeX, gaugeY, innerRadius, angle, length, colour, isMajorTick, tickVal);
+    drawTick(gaugeX, gaugeY, innerRadius, angle, TICK_LENGTH, colour, isMajorTick, tickVal);
   }
 
   // Draw needle with currentValue
   int currentAngle = mapFloat(currentValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, innerRadius - 2, innerRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
   
 
   // Draw inner circle
-  tft.drawCircle(gaugeX, gaugeY, innerRadius, GAUGE_PRIMARY_COLOUR);
+  //tft.drawCircle(gaugeX, gaugeY, innerRadius, GAUGE_PRIMARY_COLOUR);
 }
 
 void updateGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int needleWidth, int maxValue, int majorTickIncrement, float currentValue, float oldValue) {
   // Clear old needle
-  int innerRadius = outerRadius - 6; // Radius of circle for ticks
+  int innerRadius = outerRadius - 7; // Radius of circle for ticks
   float oldAngle = mapFloat(oldValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, innerRadius - 2, centreRadius + 2, needleWidth, BACKGROUND_COLOUR, oldAngle);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, BACKGROUND_COLOUR, oldAngle);
 
   // Redraw covered part of gauge
   // Round up to greater major tick, minor tick in the middle, and smaller major tick
@@ -563,15 +558,15 @@ void updateGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int 
 
   // Check biggest major tick val exists (might end on a minor)
   if (bigMajorTickVal <= maxValue) { // Redraw it
-    drawTick(gaugeX, gaugeY, innerRadius, bigMajorTickAngle, MAJOR_TICK_LENGTH, MAJOR_TICK_COLOUR, true, bigMajorTickVal);
+    drawTick(gaugeX, gaugeY, innerRadius, bigMajorTickAngle, TICK_LENGTH, GAUGE_SECONDARY_COLOUR, true, bigMajorTickVal);
   }
 
-  drawTick(gaugeX, gaugeY, innerRadius, minorTickAngle, MINOR_TICK_LENGTH, MINOR_TICK_COLOUR, false, minorTickVal);
-  drawTick(gaugeX, gaugeY, innerRadius, smallMajorTickAngle, MAJOR_TICK_LENGTH, MAJOR_TICK_COLOUR, true, smallMajorTickVal);
+  drawTick(gaugeX, gaugeY, innerRadius, minorTickAngle, TICK_LENGTH, GAUGE_PRIMARY_COLOUR, false, minorTickVal);
+  drawTick(gaugeX, gaugeY, innerRadius, smallMajorTickAngle, TICK_LENGTH, GAUGE_SECONDARY_COLOUR, true, smallMajorTickVal);
 
   // Draw needle with currentValue
   float currentAngle = mapFloat(currentValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, innerRadius - 2, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
 }
 
 void drawTick(int centreX, int centreY, int radius, int angle, int length, int colour, bool showLabel, int labelValue) {
@@ -601,29 +596,18 @@ void drawTick(int centreX, int centreY, int radius, int angle, int length, int c
 }
 
 void drawNeedle(int centreX, int centreY, int outerRadius, int innerRadius, int width, int colour, float angle) {
-  float rads = angle * PI / 180;
+  int innerCentreX = centreX + innerRadius * cos(angle * PI / 180);
+  int innerCentreY = centreY + innerRadius * sin(angle * PI / 180);
+  int innerX1 = centreX + innerRadius * cos((angle + 3) * PI / 180);
+  int innerY1 = centreY + innerRadius * sin((angle + 3) * PI / 180);
+  int innerX2 = centreX + innerRadius * cos((angle - 3) * PI / 180);
+  int innerY2 = centreY + innerRadius * sin((angle - 3) * PI / 180);
+  int outerX = centreX + outerRadius * cos(angle * PI / 180);
+  int outerY = centreY + outerRadius * sin(angle * PI / 180);
+  
 
-  int innerX = centreX + innerRadius * cos(rads);
-  int innerY = centreY + innerRadius * sin(rads);
-  int outerX = centreX + outerRadius * cos(rads);
-  int outerY = centreY + outerRadius * sin(rads);
-
-  tft.drawLine(innerX, innerY, outerX, outerY, colour);
-}
-
-// Old function for drawing fancier needle, but arduino struggles with it
-void drawTriangleNeedle(int centreX, int centreY, int length, int width, int colour, float angle) {
-  float rads = angle * PI / 180;
-
-  int outerX = centreX + length * cos(rads);
-  int outerY = centreY + length * sin(rads);
-
-  int innerX1 = centreX + (width / 2) * cos(rads + PI / 2);
-  int innerY1 = centreY + (width / 2) * sin(rads + PI / 2);
-  int innerX2 = centreX + (width / 2) * cos(rads - PI / 2);
-  int innerY2 = centreY + (width / 2) * sin(rads - PI / 2);
-
-  tft.fillTriangle(outerX, outerY, innerX1, innerY1, innerX2, innerY2, colour);
+  tft.drawLine(innerCentreX, innerCentreY, outerX, outerY, colour);
+  tft.fillTriangle(innerX1, innerY1, innerX2, innerY2, outerX, outerY, colour);
 }
 
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
