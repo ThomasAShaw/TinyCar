@@ -9,7 +9,7 @@
 #define HAZARDS_BUTTON 2
 #define GAS_PEDAL_DIGITAL A0 // Testing as digital, will be switched to analog eventually
 #define BRAKE_PEDAL_DIGITAL A1 // Testing as digital, will be switched to analog eventually
-#define HEADLIGHTS_LOW_SWITCH A4
+#define HEADLIGHTS_OFF_SWITCH A4
 #define HEADLIGHTS_HIGH_SWITCH A5
 #define LEFT_SIGNAL_SWITCH A2
 #define RIGHT_SIGNAL_SWITCH A3
@@ -22,6 +22,12 @@
 
 #define PI 3.14159
 #define CM_IN_KM 100000
+
+enum HeadlightState {
+  HEADLIGHTS_OFF,
+  HEADLIGHTS_LOW,
+  HEADLIGHTS_HIGH
+};
 
 // Car-specific stats - potential FIXME
 const float MAX_SPEED = 250.0;
@@ -37,37 +43,68 @@ const float TIRE_DIAMETER_CM = 60.1;
 // Display constants
 const uint16_t SCREEN_CENTRE_X = 160;
 const uint16_t SCREEN_CENTRE_Y = 120;
-const uint16_t GAUGE_RADIUS = 65;
-const uint16_t SPEEDO_CENTRE_X = SCREEN_CENTRE_X - GAUGE_RADIUS - 20;
+const uint16_t GAUGE_OUTER_RADIUS = 65;
+const uint16_t GAUGE_CENTRE_RADIUS = 28;
+const uint16_t SPEEDO_CENTRE_X = SCREEN_CENTRE_X - GAUGE_OUTER_RADIUS - 20;
 const uint16_t SPEEDO_CENTRE_Y = SCREEN_CENTRE_Y - 20;
-const uint16_t TACHO_CENTRE_X = SCREEN_CENTRE_X + GAUGE_RADIUS + 20;
+const uint16_t TACHO_CENTRE_X = SCREEN_CENTRE_X + GAUGE_OUTER_RADIUS + 20;
 const uint16_t TACHO_CENTRE_Y = SCREEN_CENTRE_Y - 20;
-const uint16_t MAJOR_TICK_LENGTH = 10;
-const uint16_t MINOR_TICK_LENGTH = 5;
+const uint16_t TICK_LENGTH = 7;
 const uint16_t NEEDLE_BASE_WIDTH = 6;
 const uint16_t TICK_LABEL_OFFSET = 10;
-const uint16_t MAJOR_TICK_COLOUR = ILI9341_WHITE;
-const uint16_t MINOR_TICK_COLOUR = ILI9341_RED;
+
 const uint16_t TICK_TEXT_SIZE = 1;
 const uint16_t GAUGE_BOTTOM_OFFSET_ANGLE = 30; // degrees
-const uint16_t GAUGE_COLOUR = ILI9341_WHITE;
-const uint16_t BACKGROUND_COLOUR = ILI9341_BLACK;
-const uint16_t NEEDLE_COLOUR = ILI9341_RED;
+
+const uint16_t GAUGE_PRIMARY_COLOUR = 0xd6da;
+const uint16_t GAUGE_SECONDARY_COLOUR = 0x071f;
+const uint16_t GAUGE_MIDDLE_COLOUR = 0x00a7;
+const uint16_t BACKGROUND_COLOUR = 0x0003;
+const uint16_t NEEDLE_COLOUR = 0xe008;
+const uint16_t MIDDLE_BACKGROUND_COLOUR = 0x00a7;
+const uint16_t TURN_SIGNAL_OFF_COLOUR = MIDDLE_BACKGROUND_COLOUR;
+const uint16_t TURN_SIGNAL_ON_COLOUR = 0x16c6;
+const uint16_t HAZARD_SIGNAL_OFF_COLOUR = MIDDLE_BACKGROUND_COLOUR;
+const uint16_t HAZARD_SIGNAL_ON_COLOUR = 0xe008;
+const uint16_t RPM_TEXT_COLOUR = 0xfc60;
+const uint16_t GREYED_OUT_COLOUR = 0x016f;
+const uint16_t HEADLIGHTS_ON_COLOUR = 0x07e0;
+const uint16_t HIGHBEAMS_ON_COLOUR = 0x071f;
+
+const uint16_t SIGNAL_SIZE = 10;  // Size of the arrow signals
+const uint16_t HAZARD_SIGNAL_X = SCREEN_CENTRE_X;
+const uint16_t HAZARD_SIGNAL_Y = SCREEN_CENTRE_Y - 73;
+const uint16_t LEFT_SIGNAL_X = SCREEN_CENTRE_X - 2 * (SIGNAL_SIZE + 6);
+const uint16_t LEFT_SIGNAL_Y = HAZARD_SIGNAL_Y;
+const uint16_t RIGHT_SIGNAL_X = SCREEN_CENTRE_X + 2 * (SIGNAL_SIZE + 6);
+const uint16_t RIGHT_SIGNAL_Y = HAZARD_SIGNAL_Y;
+const uint16_t FUEL_BAR_SIZE = 6;
+const uint16_t FUEL_BAR_X = SCREEN_CENTRE_X - 2 * (FUEL_BAR_SIZE + 2) - FUEL_BAR_SIZE / 2;
+const uint16_t FUEL_BAR_Y = SCREEN_CENTRE_Y - 54;
+const uint16_t FUEL_ICON_X = SCREEN_CENTRE_X - 7;
+const uint16_t FUEL_ICON_Y = FUEL_BAR_Y + 10;
+const uint16_t LIGHT_ICON_X = SCREEN_CENTRE_X;
+const uint16_t LIGHT_ICON_Y = SCREEN_CENTRE_Y - 8;
+const uint16_t ODOMETER_X = SCREEN_CENTRE_X - 16;
+const uint16_t ODOMETER_Y = SCREEN_CENTRE_Y + 14;
 
 bool hazardsToggledOn = false;
-bool leftSignalToggledOn = false;
-bool rightSignalToggledOn = false;
+bool leftSignalSwitchOn = false;
+bool rightSignalSwitchOn = false;
 bool signalLightsOn = false;
 bool hazardButtonState = HIGH;
 unsigned long signalTime = 0;
 unsigned long pedalTime = 0;
-unsigned int pedalsCheckedCount = 0;
 float currentSpeed = 0.0;
 float currentRPM = 0.0;
 int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
+float currentFuelLevel = 100.0;
+HeadlightState currentHeadlightState = HEADLIGHTS_OFF;
+float currentOdometerKM = 999998.0;
 
-float oldSpeed = 0.0;
-float oldRPM = 0.0;
+float oldSpeed = currentSpeed;
+float oldRPM = currentRPM;
+float oldGear = currentGear - 1;
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
 
@@ -80,7 +117,7 @@ void setup() {
   pinMode(HAZARDS_BUTTON, INPUT_PULLUP);
   pinMode(GAS_PEDAL_DIGITAL, INPUT_PULLUP);
   pinMode(BRAKE_PEDAL_DIGITAL, INPUT_PULLUP);
-  pinMode(HEADLIGHTS_LOW_SWITCH, INPUT_PULLUP);
+  pinMode(HEADLIGHTS_OFF_SWITCH, INPUT_PULLUP);
   pinMode(HEADLIGHTS_HIGH_SWITCH, INPUT_PULLUP);
   pinMode(LEFT_SIGNAL_SWITCH, INPUT_PULLUP);
   pinMode(RIGHT_SIGNAL_SWITCH, INPUT_PULLUP);
@@ -99,16 +136,6 @@ void loop() {
     updateScreen();
 
     pedalTime = millis();
-    pedalsCheckedCount++;
-
-    if (pedalsCheckedCount >= 10) {
-      Serial.println("Current Speed:");
-      Serial.println(currentSpeed);
-      Serial.println("Current RPM:");
-      Serial.println(currentRPM);
-
-      pedalsCheckedCount = 0;
-    }
   }
 }
 
@@ -119,49 +146,296 @@ void setupScreen(void) {
   tft.begin();
 
   tft.setRotation(1);
-  tft.fillScreen(ILI9341_BLACK);
+  tft.fillScreen(BACKGROUND_COLOUR);
+
+  tft.fillRect(FUEL_BAR_X - 16, FUEL_BAR_Y - 4, 72, 34, MIDDLE_BACKGROUND_COLOUR);
+  tft.fillRect(ODOMETER_X - 42, ODOMETER_Y - 5, 116, 26, MIDDLE_BACKGROUND_COLOUR);
+  tft.fillRect(LIGHT_ICON_X - 24, LIGHT_ICON_Y - 13, 60, 27, MIDDLE_BACKGROUND_COLOUR);
+
+  drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed);
+  drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000);
+
+  // Tachometer RPM text
+  tft.setTextSize(1);
+  tft.setTextColor(RPM_TEXT_COLOUR, BACKGROUND_COLOUR);
+  tft.setCursor(TACHO_CENTRE_X - 8, TACHO_CENTRE_Y + 35);
+  tft.print("RPM");
+  tft.setCursor(TACHO_CENTRE_X - 16, TACHO_CENTRE_Y + 45);
+  tft.print("x1000");
+
+  updateHazardsIcon(false);
+  updateTurnSignalIcons(false, false);
+
+  // Fuel Icon + E & F
+  tft.setTextSize(1);
+  tft.setTextColor(GAUGE_PRIMARY_COLOUR, MIDDLE_BACKGROUND_COLOUR);
+  tft.setCursor(FUEL_BAR_X, FUEL_BAR_Y + FUEL_BAR_SIZE + 4);
+  tft.print("E");
+  tft.setCursor(FUEL_BAR_X + 4 * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y + FUEL_BAR_SIZE + 4);
+  tft.print("F");
+
+  drawFuelPump(FUEL_ICON_X, FUEL_ICON_Y, GAUGE_PRIMARY_COLOUR);
+  updateFuelBar(4); // TODO: Update fuel dynamically
+
+  // Odometer KM
+  updateOdometer(); // TODO: Update odometer dynamically
+  tft.setTextSize(1);
+  tft.setTextColor(GAUGE_PRIMARY_COLOUR, MIDDLE_BACKGROUND_COLOUR);
+  tft.setCursor(ODOMETER_X + 12, ODOMETER_Y + 10);
+  tft.print("KM");
+
+  updateScreen();
 }
 
 void updateScreen(void) {
   // Update speed and RPM
-  if (oldSpeed * 1.02 < currentSpeed || oldSpeed * 0.98 > currentSpeed) {
-    drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed, oldSpeed);
-    oldSpeed = currentSpeed;
+  if (abs(oldSpeed - currentSpeed) >= 0.2) {
+    updateSpeedometer();
+    
   }
 
-  if (oldRPM * 1.01 < currentRPM || oldRPM * 0.99 > currentRPM) {
-    drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000, oldRPM / 1000);
-    oldRPM = currentRPM;
+  if (abs(oldRPM - currentRPM) >= 10 || currentGear != oldGear) {
+    updateTachometer();
   }
 
-  // TODO: Update gear indicator
-
-  // TODO Update fuel, turn signals, hazards, etc.
-
+  // TODO: Odometer (DYNAMICALLY)
 }
 
-void handleTurnSignals(void) {
-  if (!hazardsToggledOn && !leftSignalToggledOn && !rightSignalToggledOn) {
-    // Ensures timing resets if a switch/button is toggled on
-    signalTime = millis() - SIGNAL_TIMING_MS;
+void updateSpeedometer(void) {
+  updateGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed, oldSpeed);
+  
+  // Update inner circle
+  tft.drawCircle(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_CENTRE_RADIUS, GAUGE_PRIMARY_COLOUR);
+
+  char speedStr[4];
+  sprintf(speedStr, "%03d", (int)currentSpeed);
+
+  // Centre text
+  int16_t x1, y1;
+  uint16_t w, h;
+  tft.getTextBounds(speedStr, 0, 0, &x1, &y1, &w, &h);
+
+  int textX = SPEEDO_CENTRE_X - 16;
+  int textY = SPEEDO_CENTRE_Y - 12;
+
+  tft.fillRect(textX, textY, w, h, GAUGE_MIDDLE_COLOUR);
+
+  // Draw leading zeroes as greyed out
+  tft.setTextSize(2);
+  tft.setTextColor(GREYED_OUT_COLOUR, GAUGE_MIDDLE_COLOUR);
+  tft.setCursor(textX, textY);
+  
+  int numZeroes = 0;
+  for (int i = 0; i < 2; i++) {
+    if (speedStr[i] == '0') {
+      tft.print('0');
+      numZeroes++;
+    } else {
+      break;
+    }
   }
 
-  readSignalInputs();
-  analogWrite(LEFT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || leftSignalToggledOn)) ? 255 : 0);
-  analogWrite(RIGHT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || rightSignalToggledOn)) ? 255 : 0);
+  // Draw the actual number in the normal color
+  tft.setTextColor(GAUGE_PRIMARY_COLOUR, GAUGE_MIDDLE_COLOUR);
+  tft.print(&speedStr[numZeroes]);
 
-  if (hazardsToggledOn || leftSignalToggledOn || rightSignalToggledOn) {
-    if (millis() - signalTime >= SIGNAL_TIMING_MS) {
-      signalLightsOn = !signalLightsOn;
-      signalTime = millis();
+  tft.setCursor(textX + 5, textY + 18);
+  tft.setTextSize(1);
+  tft.print("KM/H");
+
+  oldSpeed = currentSpeed;
+}
+
+void updateTachometer(void) {
+  updateGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000, oldRPM / 1000);
+  
+  // Update inner circle
+  tft.drawCircle(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_CENTRE_RADIUS, GAUGE_PRIMARY_COLOUR);
+  
+  if (currentGear != oldGear) {
+    // 0 = 1, 1 = 2, 3, 4, 5, R, N
+    char gearChar;
+    if (currentGear >= 0 && currentGear < 5) {
+      gearChar = '1' + currentGear;
+    } else if (currentGear == 5) {
+      gearChar = 'R';
+    } else if (currentGear == 6) {
+      gearChar = 'N';
+    } else {
+      gearChar = '?';
     }
+
+    int textX = TACHO_CENTRE_X - 16;
+    int textY = TACHO_CENTRE_Y - 12;
+
+    tft.setTextSize(2);
+    tft.setTextColor(GAUGE_PRIMARY_COLOUR, GAUGE_MIDDLE_COLOUR);
+    tft.setCursor(textX, textY);
+    tft.print(' ');
+    tft.print(gearChar);
+
+    tft.setCursor(textX + 4, textY + 18);
+    tft.setTextSize(1);
+    tft.print("GEAR");
+
+    oldGear = currentGear;
+  }
+
+  oldRPM = currentRPM;
+}
+
+void updateOdometer(void) {
+  // Clamp to displayable range
+  uint32_t displayedOdometerKM;
+  if (currentOdometerKM >= 999999.0) {
+    displayedOdometerKM = 999999;
+  } else if (currentOdometerKM < 0.0) {
+    displayedOdometerKM = 0;
+  } else {
+    displayedOdometerKM = (uint32_t) currentOdometerKM;
+  }
+
+  Serial.print(currentOdometerKM);
+  char kmStr[7];
+  sprintf(kmStr, "%06lu", displayedOdometerKM);
+
+  // Draw leading zeroes as greyed out
+  tft.setTextSize(1);
+  tft.setTextColor(GREYED_OUT_COLOUR, MIDDLE_BACKGROUND_COLOUR);
+  tft.setCursor(ODOMETER_X, ODOMETER_Y);
+  
+  int numZeroes = 0;
+  for (int i = 0; i < 6; i++) {
+    if (kmStr[i] == '0') {
+      tft.print('0');
+      numZeroes++;
+    } else {
+      break;
+    }
+  }
+
+  // Draw the actual number in the normal color
+  tft.setTextColor(GAUGE_PRIMARY_COLOUR, MIDDLE_BACKGROUND_COLOUR);
+  tft.print(&kmStr[numZeroes]);
+}
+
+void updateTurnSignalIcons(bool leftSignalOn, bool rightSignalOn) {
+  drawArrow(LEFT_SIGNAL_X, LEFT_SIGNAL_Y, SIGNAL_SIZE, leftSignalOn ? TURN_SIGNAL_ON_COLOUR : TURN_SIGNAL_OFF_COLOUR, true);
+  drawArrow(RIGHT_SIGNAL_X, RIGHT_SIGNAL_Y, SIGNAL_SIZE, rightSignalOn ? TURN_SIGNAL_ON_COLOUR : TURN_SIGNAL_OFF_COLOUR, false);
+}
+
+void drawArrow(int x, int y, int size, int color, bool pointingLeft) {
+  if (pointingLeft) {
+    tft.fillTriangle(x, y, x + size, y + size / 2, x + size, y - size / 2, color);
+    tft.fillRect(x + size, y - (size / 4), size, size / 2, color);
+  } else {
+    tft.fillTriangle(x, y, x - size, y + size / 2, x - size, y - size / 2, color);
+    tft.fillRect(x - (2 * size), y - (size / 4), size, size / 2, color);
+  }
+}
+
+void updateHazardsIcon(bool toggledOn) {
+  tft.drawTriangle(HAZARD_SIGNAL_X, HAZARD_SIGNAL_Y - 4, HAZARD_SIGNAL_X - 4, HAZARD_SIGNAL_Y + 4, HAZARD_SIGNAL_X + 4, HAZARD_SIGNAL_Y + 4, toggledOn ? HAZARD_SIGNAL_ON_COLOUR : HAZARD_SIGNAL_OFF_COLOUR);
+  tft.drawTriangle(HAZARD_SIGNAL_X, HAZARD_SIGNAL_Y - 8, HAZARD_SIGNAL_X - 7, HAZARD_SIGNAL_Y + 6, HAZARD_SIGNAL_X + 7, HAZARD_SIGNAL_Y + 6, toggledOn ? HAZARD_SIGNAL_ON_COLOUR : HAZARD_SIGNAL_OFF_COLOUR);
+}
+
+// From 0-5, where 0 is empty, and 5 is full.
+void updateFuelBar(int fuelLevel) {
+  if (fuelLevel > 5) fuelLevel = 5;
+  if (fuelLevel < 0) fuelLevel = 0;
+
+  for (int i = 0; i < 5; i++) {
+    if (fuelLevel > i) {
+      tft.fillRect(FUEL_BAR_X + i * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y, FUEL_BAR_SIZE, FUEL_BAR_SIZE, GAUGE_PRIMARY_COLOUR);
+    } else {
+      tft.fillRect(FUEL_BAR_X + i * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y, FUEL_BAR_SIZE, FUEL_BAR_SIZE, MIDDLE_BACKGROUND_COLOUR);
+      tft.drawRect(FUEL_BAR_X + i * (FUEL_BAR_SIZE + 2), FUEL_BAR_Y, FUEL_BAR_SIZE, FUEL_BAR_SIZE, GAUGE_PRIMARY_COLOUR);
+    }
+  }
+}
+
+void drawFuelPump(int x, int y, uint16_t color) {
+  tft.fillRoundRect(x, y, 12, 16, 1, color);
+  tft.fillRoundRect(x - 3, y + 14, 18, 2, 1, color);
+  tft.fillRect(x + 2, y + 3, 8, 4, MIDDLE_BACKGROUND_COLOUR);
+  tft.drawPixel(x + 12, y + 6, color);
+  tft.drawLine(x + 13, y + 7, x + 13, y + 11, color);
+  tft.drawPixel(x + 14, y + 12, color);
+  tft.drawLine(x + 15, y + 11, x + 15, y + 5, color);
+  tft.drawLine(x + 15, y + 5, x + 13, y + 2, color);
+}
+
+void drawHighBeams(int x, int y, uint16_t color) {
+  tft.fillCircle(x, y, 10, color);
+  tft.fillRect(x - 10, y - 11, 10, 22, MIDDLE_BACKGROUND_COLOUR);
+  tft.fillCircle(x, y, 8, MIDDLE_BACKGROUND_COLOUR);
+  tft.drawLine(x, y - 10, x, y + 10, color);
+  tft.drawLine(x - 1, y - 10, x - 1, y + 10, color);
+
+  // Horizontal Lines
+  tft.drawLine(x - 4, y - 9, x - 10, y - 9, color);
+  tft.drawLine(x - 4, y - 8, x - 10, y - 8, color);
+  tft.drawLine(x - 4, y - 5, x - 10, y - 5, color);
+  tft.drawLine(x - 4, y - 4, x - 10, y - 4, color);
+  tft.drawLine(x - 4, y - 1, x - 10, y - 1, color);
+  tft.drawLine(x - 4, y, x - 10, y, color);
+  tft.drawLine(x - 4, y + 3, x - 10, y + 3, color);
+  tft.drawLine(x - 4, y + 4, x - 10, y + 4, color);
+  tft.drawLine(x - 4, y + 7, x - 10, y + 7, color);
+  tft.drawLine(x - 4, y + 8, x - 10, y + 8, color);
+}
+
+void drawHeadlights(int x, int y, uint16_t color) {
+  tft.fillCircle(x, y, 10, color);
+  tft.fillRect(x - 10, y - 11, 10, 22, MIDDLE_BACKGROUND_COLOUR);
+  tft.fillCircle(x, y, 8, MIDDLE_BACKGROUND_COLOUR);
+  tft.drawLine(x, y - 10, x, y + 10, color);
+  tft.drawLine(x - 1, y - 10, x - 1, y + 10, color);
+
+  // Diagonal Lines
+  tft.drawLine(x - 4, y - 9, x - 10, y - 8, color);
+  tft.drawLine(x - 4, y - 8, x - 10, y - 7, color);
+  tft.drawLine(x - 4, y - 5, x - 10, y - 4, color);
+  tft.drawLine(x - 4, y - 4, x - 10, y - 3, color);
+  
+  tft.drawLine(x - 4, y - 1, x - 10, y, color);
+  tft.drawLine(x - 4, y, x - 10, y + 1, color);
+
+  tft.drawLine(x - 4, y + 3, x - 10, y + 4, color);
+  tft.drawLine(x - 4, y + 4, x - 10, y + 5, color);
+  tft.drawLine(x - 4, y + 7, x - 10, y + 8, color);
+  tft.drawLine(x - 4, y + 8, x - 10, y + 9, color);
+}
+
+
+void handleTurnSignals(void) {
+  readSignalInputs();
+  bool shouldToggleLights = (hazardsToggledOn || leftSignalSwitchOn || rightSignalSwitchOn);
+
+  if (shouldToggleLights) {
+    if (millis() - signalTime >= SIGNAL_TIMING_MS) {
+    signalTime = millis();
+    signalLightsOn = !signalLightsOn;
+
+    analogWrite(LEFT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || leftSignalSwitchOn)) ? 255 : 0);
+    analogWrite(RIGHT_SIGNAL_LIGHT, (signalLightsOn && (hazardsToggledOn || rightSignalSwitchOn)) ? 255 : 0);
+    updateTurnSignalIcons(signalLightsOn && (hazardsToggledOn || leftSignalSwitchOn), signalLightsOn && (hazardsToggledOn || rightSignalSwitchOn));
+    }
+  } else if (signalLightsOn) { // Should turn lights off (as no switches are active now)
+    // Ensures timing resets if a switch/button is toggled on at some point in future
+    signalLightsOn = false;
+    signalTime = millis() - SIGNAL_TIMING_MS;
+
+    analogWrite(LEFT_SIGNAL_LIGHT, 0);
+    analogWrite(RIGHT_SIGNAL_LIGHT, 0);
+    updateTurnSignalIcons(false, false);
   }
 }
 
 void readSignalInputs(void) {
   // Individual switches
-  leftSignalToggledOn = digitalRead(LEFT_SIGNAL_SWITCH) == LOW;
-  rightSignalToggledOn = digitalRead(RIGHT_SIGNAL_SWITCH) == LOW;
+  leftSignalSwitchOn = digitalRead(LEFT_SIGNAL_SWITCH) == LOW;
+  rightSignalSwitchOn = digitalRead(RIGHT_SIGNAL_SWITCH) == LOW;
 
   // Hazard light button reading (press toggles it)
   bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
@@ -171,18 +445,39 @@ void readSignalInputs(void) {
 
     if (hazardButtonState == LOW) {
       hazardsToggledOn = !hazardsToggledOn;
-      signalLightsOn = signalLightsOn;
+      updateHazardsIcon(hazardsToggledOn);
     }
   }
 }
 
 void handleHeadlights(void) {
-  if (digitalRead(HEADLIGHTS_LOW_SWITCH) == LOW) {
-    analogWrite(HEADLIGHTS, 255);
-  } else if (digitalRead(HEADLIGHTS_HIGH_SWITCH) == LOW) {
-    analogWrite(HEADLIGHTS, 0);
+  HeadlightState newHeadlightState;
+
+  if (digitalRead(HEADLIGHTS_HIGH_SWITCH) == LOW) {
+    newHeadlightState = HEADLIGHTS_HIGH;
+  } else if (digitalRead(HEADLIGHTS_OFF_SWITCH) == LOW) {
+    newHeadlightState = HEADLIGHTS_OFF;
   } else {
-    analogWrite(HEADLIGHTS, 128);
+    newHeadlightState = HEADLIGHTS_LOW;
+  }
+
+  if (newHeadlightState != currentHeadlightState) {
+    switch(newHeadlightState) {
+      case(HEADLIGHTS_OFF):
+        drawHeadlights(LIGHT_ICON_X, LIGHT_ICON_Y, GREYED_OUT_COLOUR);
+        analogWrite(HEADLIGHTS, 0);
+        break;
+      case(HEADLIGHTS_LOW):
+        drawHeadlights(LIGHT_ICON_X, LIGHT_ICON_Y, HEADLIGHTS_ON_COLOUR);
+        analogWrite(HEADLIGHTS, 128);
+        break;
+      case(HEADLIGHTS_HIGH):
+        drawHighBeams(LIGHT_ICON_X, LIGHT_ICON_Y, HIGHBEAMS_ON_COLOUR);
+        analogWrite(HEADLIGHTS, 255);
+        break;
+    }
+
+    currentHeadlightState = newHeadlightState;
   }
 }
 
@@ -212,33 +507,72 @@ void handlePedals(void) {
 }
 
 // Display Functions
-void drawGauge(int gaugeX, int gaugeY, int gaugeRadius, int needleWidth, int maxValue, int majorTickIncrement, float currentValue, float oldValue) {
-  // Clear old needle
-  int oldAngle = mapFloat(oldValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, gaugeRadius - 1, needleWidth, BACKGROUND_COLOUR, oldAngle);
-  tft.fillCircle(gaugeX, gaugeY, needleWidth + 1, BACKGROUND_COLOUR);
-
+// Initial drawing of gauge
+void drawGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int needleWidth, int maxValue, int majorTickIncrement, float currentValue) {
   // Draw gauge (no needle)
-  //tft.fillCircle(gaugeX, gaugeY, gaugeRadius, BACKGROUND_COLOUR);
-  tft.drawCircle(gaugeX, gaugeY, gaugeRadius, GAUGE_COLOUR);
-  
+  tft.fillCircle(gaugeX, gaugeY, outerRadius, GAUGE_SECONDARY_COLOUR);
+  tft.fillCircle(gaugeX, gaugeY, outerRadius - 2, BACKGROUND_COLOUR);
+  tft.fillCircle(gaugeX, gaugeY, outerRadius - 4, GAUGE_PRIMARY_COLOUR);
+  tft.fillCircle(gaugeX, gaugeY, outerRadius - 6, BACKGROUND_COLOUR);
+  tft.fillCircle(gaugeX, gaugeY, centreRadius, GAUGE_PRIMARY_COLOUR);
+  tft.fillCircle(gaugeX, gaugeY, centreRadius - 2, GAUGE_MIDDLE_COLOUR);
+  tft.setTextColor(GAUGE_PRIMARY_COLOUR, BACKGROUND_COLOUR);
   int numTicks = 2 * (maxValue / majorTickIncrement);
   numTicks += (maxValue % majorTickIncrement == 0) ? 1 : 2; // Inclusive zero, and add an extra if there's a last minor tick
+
+  int innerRadius = outerRadius - 7; // Radius of circle for ticks
 
   for (int i = 0; i < numTicks; i++) {
     int tickVal = (i / 2) * majorTickIncrement;
     bool isMajorTick = ((i % 2) == 0);
     int angle = map(i, 0, numTicks - 1, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-    int length = isMajorTick ? MAJOR_TICK_LENGTH : MINOR_TICK_LENGTH;
-    int colour = isMajorTick ? MAJOR_TICK_COLOUR : MINOR_TICK_COLOUR;
+    int colour = isMajorTick ? GAUGE_SECONDARY_COLOUR : GAUGE_PRIMARY_COLOUR;
 
-    drawTick(gaugeX, gaugeY, gaugeRadius, angle, length, GAUGE_COLOUR, isMajorTick, tickVal);
+    drawTick(gaugeX, gaugeY, innerRadius, angle, TICK_LENGTH, colour, isMajorTick, tickVal);
   }
 
   // Draw needle with currentValue
   int currentAngle = mapFloat(currentValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, gaugeRadius - 1, needleWidth, NEEDLE_COLOUR, currentAngle);
-  tft.fillCircle(gaugeX, gaugeY, needleWidth + 1, GAUGE_COLOUR);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
+  
+
+  // Draw inner circle
+  //tft.drawCircle(gaugeX, gaugeY, innerRadius, GAUGE_PRIMARY_COLOUR);
+}
+
+void updateGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int needleWidth, int maxValue, int majorTickIncrement, float currentValue, float oldValue) {
+  // Clear old needle
+  int innerRadius = outerRadius - 7; // Radius of circle for ticks
+  float oldAngle = mapFloat(oldValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, BACKGROUND_COLOUR, oldAngle);
+  tft.setTextColor(GAUGE_PRIMARY_COLOUR, BACKGROUND_COLOUR);
+
+  // Redraw covered part of gauge
+  // Round up to greater major tick, minor tick in the middle, and smaller major tick
+  int bigMajorTickVal = ceil(currentValue / majorTickIncrement) * majorTickIncrement;
+  int smallMajorTickVal = floor(currentValue / majorTickIncrement) * majorTickIncrement;
+  float minorTickVal = (bigMajorTickVal + smallMajorTickVal) / 2.0;
+
+  // Ensure the values are within valid range
+  if (smallMajorTickVal < 0) {
+    smallMajorTickVal = 0;
+  }
+
+  float bigMajorTickAngle = mapFloat(bigMajorTickVal, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
+  float minorTickAngle = mapFloat(minorTickVal, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
+  float smallMajorTickAngle = mapFloat(smallMajorTickVal, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
+
+  // Check biggest major tick val exists (might end on a minor)
+  if (bigMajorTickVal <= maxValue) { // Redraw it
+    drawTick(gaugeX, gaugeY, innerRadius, bigMajorTickAngle, TICK_LENGTH, GAUGE_SECONDARY_COLOUR, true, bigMajorTickVal);
+  }
+
+  drawTick(gaugeX, gaugeY, innerRadius, minorTickAngle, TICK_LENGTH, GAUGE_PRIMARY_COLOUR, false, minorTickVal);
+  drawTick(gaugeX, gaugeY, innerRadius, smallMajorTickAngle, TICK_LENGTH, GAUGE_SECONDARY_COLOUR, true, smallMajorTickVal);
+
+  // Draw needle with currentValue
+  float currentAngle = mapFloat(currentValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
 }
 
 void drawTick(int centreX, int centreY, int radius, int angle, int length, int colour, bool showLabel, int labelValue) {
@@ -267,18 +601,19 @@ void drawTick(int centreX, int centreY, int radius, int angle, int length, int c
   }
 }
 
-void drawNeedle(int centreX, int centreY, int length, int width, int colour, int angle) {
-  float rads = angle * PI / 180;
+void drawNeedle(int centreX, int centreY, int outerRadius, int innerRadius, int width, int colour, float angle) {
+  int innerCentreX = centreX + innerRadius * cos(angle * PI / 180);
+  int innerCentreY = centreY + innerRadius * sin(angle * PI / 180);
+  int innerX1 = centreX + innerRadius * cos((angle + 3) * PI / 180);
+  int innerY1 = centreY + innerRadius * sin((angle + 3) * PI / 180);
+  int innerX2 = centreX + innerRadius * cos((angle - 3) * PI / 180);
+  int innerY2 = centreY + innerRadius * sin((angle - 3) * PI / 180);
+  int outerX = centreX + outerRadius * cos(angle * PI / 180);
+  int outerY = centreY + outerRadius * sin(angle * PI / 180);
+  
 
-  int outerX = centreX + length * cos(rads);
-  int outerY = centreY + length * sin(rads);
-
-  int innerX1 = centreX + (width / 2) * cos(rads + PI / 2);
-  int innerY1 = centreY + (width / 2) * sin(rads + PI / 2);
-  int innerX2 = centreX + (width / 2) * cos(rads - PI / 2);
-  int innerY2 = centreY + (width / 2) * sin(rads - PI / 2);
-
-  tft.fillTriangle(outerX, outerY, innerX1, innerY1, innerX2, innerY2, colour);
+  tft.drawLine(innerCentreX, innerCentreY, outerX, outerY, colour);
+  tft.fillTriangle(innerX1, innerY1, innerX2, innerY2, outerX, outerY, colour);
 }
 
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
