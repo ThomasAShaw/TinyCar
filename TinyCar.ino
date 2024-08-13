@@ -19,6 +19,8 @@
 
 #define SIGNAL_TIMING_MS 750
 #define PEDAL_TIMING_MS 100
+#define FUEL_TIMING_MS 1000
+#define ODOMETER_TIMING_MS 1000
 
 #define PI 3.14159
 #define CM_IN_KM 100000
@@ -39,6 +41,8 @@ const float IDLE_DECREASE_RPM_RATE = 50.0;
 const float FINAL_DRIVE_RATIO = 3.58;
 const float TRANS_RATIOS[] = {3.49, 1.99, 1.45, 1.00, 0.71, 3.99}; // 1, 2, 3, 4, 5, R
 const float TIRE_DIAMETER_CM = 60.1;
+const float RPM_FUEL_FACTOR = 100.0 / (60.0 * 30.0 * 1000.0 * 1000.0); // at 1000RPM, takes 30 mins to deplete fuel.
+const float SPEED_DISTANCE_MULTIPLER = 10.0; // Odometer goes up 10x faster than realistic to show more visuals
 
 // Display constants
 const uint16_t SCREEN_CENTRE_X = 160;
@@ -95,12 +99,14 @@ bool signalLightsOn = false;
 bool hazardButtonState = HIGH;
 unsigned long signalTime = 0;
 unsigned long pedalTime = 0;
+unsigned long fuelTime = 0;
+unsigned long odometerTime = 0;
 float currentSpeed = 0.0;
 float currentRPM = 0.0;
 int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
 float currentFuelLevel = 100.0;
 HeadlightState currentHeadlightState = HEADLIGHTS_OFF;
-float currentOdometerKM = 999998.0;
+float currentOdometerKM = 0.0;
 
 float oldSpeed = currentSpeed;
 float oldRPM = currentRPM;
@@ -136,6 +142,14 @@ void loop() {
     updateScreen();
 
     pedalTime = millis();
+  }
+
+  if (millis() - fuelTime >= FUEL_TIMING_MS) {
+    updateFuelLevel();
+  }
+
+  if (millis() - odometerTime >= ODOMETER_TIMING_MS) {
+    updateOdometer();
   }
 }
 
@@ -175,10 +189,9 @@ void setupScreen(void) {
   tft.print("F");
 
   drawFuelPump(FUEL_ICON_X, FUEL_ICON_Y, GAUGE_PRIMARY_COLOUR);
-  updateFuelBar(4); // TODO: Update fuel dynamically
 
   // Odometer KM
-  updateOdometer(); // TODO: Update odometer dynamically
+  updateOdometerDisplay(0);
   tft.setTextSize(1);
   tft.setTextColor(GAUGE_PRIMARY_COLOUR, MIDDLE_BACKGROUND_COLOUR);
   tft.setCursor(ODOMETER_X + 12, ODOMETER_Y + 10);
@@ -197,8 +210,30 @@ void updateScreen(void) {
   if (abs(oldRPM - currentRPM) >= 10 || currentGear != oldGear) {
     updateTachometer();
   }
+}
 
-  // TODO: Odometer (DYNAMICALLY)
+void updateFuelLevel() {
+    unsigned long currentTime = millis();
+    float elapsedTime = (currentTime - fuelTime);
+
+    // Calculate fuel consumption based on current RPM
+    float fuelConsumed = currentRPM * RPM_FUEL_FACTOR * elapsedTime;
+    float newFuelLevel = currentFuelLevel - fuelConsumed;
+
+    if (newFuelLevel < 0) {
+    newFuelLevel = 0;
+    }
+
+    if (newFuelLevel > 100) {
+      newFuelLevel = 100;
+    }
+
+    if ((int)(newFuelLevel / 20) != (int)(currentFuelLevel / 20)) {
+      updateFuelBar(int(currentFuelLevel / 20));
+    }
+    
+    currentFuelLevel = newFuelLevel;
+    fuelTime = currentTime;
 }
 
 void updateSpeedometer(void) {
@@ -285,19 +320,37 @@ void updateTachometer(void) {
 }
 
 void updateOdometer(void) {
+    unsigned long currentTime = millis();
+    float elapsedTime = (currentTime - odometerTime);
+
+    // Calculate fuel consumption based on current RPM
+    float distanceTravelled = currentSpeed * SPEED_DISTANCE_MULTIPLER * elapsedTime / (60.0 * 60.0 * 1000.0);
+    float newOdometerKM = currentOdometerKM + distanceTravelled;
+
+    if (newOdometerKM < 0) {
+    newOdometerKM = 0;
+    }
+
+    if (newOdometerKM > 100) {
+      newOdometerKM = 100;
+    }
+
+    if ((unsigned long)(newOdometerKM) != (unsigned long)(currentOdometerKM)) {
+      updateOdometerDisplay((unsigned long)(newOdometerKM));
+    }
+    
+    currentOdometerKM = newOdometerKM;
+    odometerTime = currentTime;
+}
+
+void updateOdometerDisplay(unsigned long odometerReading) {
   // Clamp to displayable range
-  uint32_t displayedOdometerKM;
-  if (currentOdometerKM >= 999999.0) {
-    displayedOdometerKM = 999999;
-  } else if (currentOdometerKM < 0.0) {
-    displayedOdometerKM = 0;
-  } else {
-    displayedOdometerKM = (uint32_t) currentOdometerKM;
+  if (odometerReading > 999999) {
+    odometerReading = 999999;
   }
 
-  Serial.print(currentOdometerKM);
   char kmStr[7];
-  sprintf(kmStr, "%06lu", displayedOdometerKM);
+  sprintf(kmStr, "%06lu", odometerReading);
 
   // Draw leading zeroes as greyed out
   tft.setTextSize(1);
