@@ -21,6 +21,7 @@
 #define PEDAL_TIMING_MS 100
 #define FUEL_TIMING_MS 1000
 #define ODOMETER_TIMING_MS 1000
+#define DEBOUNCE_DELAY 50
 
 #define PI 3.14159
 #define CM_IN_KM 100000
@@ -97,6 +98,7 @@ bool leftSignalSwitchOn = false;
 bool rightSignalSwitchOn = false;
 bool signalLightsOn = false;
 bool hazardButtonState = HIGH;
+unsigned long lastDebounceTimeHazards = 0;
 unsigned long signalTime = 0;
 unsigned long pedalTime = 0;
 unsigned long fuelTime = 0;
@@ -493,7 +495,8 @@ void readSignalInputs(void) {
   // Hazard light button reading (press toggles it)
   bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
 
-  if (hazardButtonState != hazardButtonReading) {
+  if (hazardButtonState != hazardButtonReading && (millis() - lastDebounceTimeHazards > DEBOUNCE_DELAY)) {
+    lastDebounceTimeHazards = millis();
     hazardButtonState = hazardButtonReading;
 
     if (hazardButtonState == LOW) {
