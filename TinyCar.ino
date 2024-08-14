@@ -37,10 +37,12 @@ const float GAS_INCREASE_RPM_RATE = 100.0;
 const float BRAKE_DECREASE_RPM_RATE = 150.0;
 const float IDLE_DECREASE_RPM_RATE = 50.0;
 const float FINAL_DRIVE_RATIO = 3.58;
-const float TRANS_RATIOS[] = {3.49, 1.99, 1.45, 1.00, 0.71, 3.99}; // 1, 2, 3, 4, 5, R
+const float TRANS_RATIOS[] = {3.49, 1.99, 1.45, 1.00, 0.71, 3.99, 1.0}; // 1, 2, 3, 4, 5, R, N
 const float TIRE_DIAMETER_CM = 60.1;
 const float RPM_FUEL_FACTOR = 100.0 / (60.0 * 30.0 * 1000.0 * 1000.0); // at 1000RPM, takes 30 mins to deplete fuel.
 const float SPEED_DISTANCE_MULTIPLER = 10.0; // Odometer goes up 10x faster than realistic to show more visuals
+const float RPM_UPSHIFT[] = {2500, 3000, 3500, 4000, 4500, MAX_RPM * 2, IDLE_RPM + 1}; // RPM thresholds to upshift
+const float RPM_DOWNSHIFT[] = {1200, 1500, 2000, 2500, 3000}; // RPM thresholds to downshift
 
 // Display Size Constants
 const uint16_t GAUGE_OUTER_RADIUS = 65;
@@ -50,7 +52,7 @@ const uint16_t SIGNAL_SIZE = 10;  // Size of the arrow signals
 const uint16_t FUEL_BAR_SIZE = 6;
 const uint16_t TICK_TEXT_SIZE = 1;
 const uint16_t TICK_LENGTH = 3;
-const uint16_t TICK_LABEL_OFFSET = 10; // FIXME?
+const uint16_t TICK_LABEL_OFFSET = 10;
 
 // Display Position Constants
 const uint16_t SCREEN_CENTRE_X = 160;
@@ -109,7 +111,7 @@ unsigned long odometerTime = 0;
 
 float currentSpeed = 0.0;
 float currentRPM = 0.0;
-int currentGear = 0; // 0 = 1, 1 = 2, 3, 4, 5, R, N
+int currentGear = 6; // 0 = 1, 1 = 2, 3, 4, 5, 5 = R, 6 = N
 float currentFuelLevel = 100.0;
 float currentOdometerKM = 0.0;
 
@@ -173,6 +175,8 @@ void drawInitialDisplay(void) {
 
   drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, MAX_SPEED, 20, currentSpeed);
   drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, MAX_RPM / 1000, 1, currentRPM / 1000);
+  updateSpeedometerDisplay(currentSpeed, currentSpeed); // Force update
+  updateTachometerDisplay(currentRPM, currentRPM, currentGear, currentGear); // Force update
 
   // Tachometer RPM text
   tft.setTextSize(1);
@@ -370,16 +374,27 @@ void handleHeadlights(void) {
   }
 }
 
-// TODO: handle more realistically with analog control + transmission
+/*
+* Handles the gas and brake pedals, 
+* responding accordingly by updating RPM and speed.
+*/
 void handlePedals(void) {
+  updateGear();
+
   bool gasPressed = digitalRead(GAS_PEDAL_DIGITAL) == LOW;
   bool brakePressed = digitalRead(BRAKE_PEDAL_DIGITAL) == LOW;
-  float currentTransRatio = TRANS_RATIOS[currentGear]; // FIXME when transmission is added
+  float currentTransRatio = TRANS_RATIOS[currentGear];
 
   // Update RPM based off pedals
   if (brakePressed) {
     analogWrite(BRAKELIGHTS, 255);
     currentRPM = max(IDLE_RPM, currentRPM - BRAKE_DECREASE_RPM_RATE);
+
+    if (currentRPM == IDLE_RPM) {
+      currentGear = 6;
+      currentSpeed -= 0.85;
+      return;
+    }
   } else {
     analogWrite(BRAKELIGHTS, 0);
 
@@ -390,9 +405,47 @@ void handlePedals(void) {
     }
   }
 
-  // Speed calculation based off RPM
-  float wheelRPM = currentRPM / (currentTransRatio * FINAL_DRIVE_RATIO);
-  currentSpeed = (wheelRPM * TIRE_DIAMETER_CM * 60 * PI) / CM_IN_KM;
+  // Speed calculation based off RPM, ensuring car not in neutral
+  if (currentGear != 6) {
+    float wheelRPM = currentRPM / (currentTransRatio * FINAL_DRIVE_RATIO);
+    float calculatedSpeed = (wheelRPM * TIRE_DIAMETER_CM * 60 * PI) / CM_IN_KM;
+
+    if (2.0 * currentSpeed < calculatedSpeed) {
+      currentSpeed = 0.55 * calculatedSpeed;
+    } else {
+      currentSpeed = calculatedSpeed;
+    }
+  } else {
+    // Speed decay in idle
+    currentSpeed -= 0.3;
+  }
+  
+  if(currentSpeed >= MAX_SPEED) currentSpeed = MAX_SPEED;
+  if (currentSpeed < 0) currentSpeed = 0;
+}
+
+/**
+ * Simulates a simple automatic transmission by shifting gears based on the engine RPM.
+ */
+void updateGear() {
+  // Increase gear
+  if (currentGear < 4 && currentRPM > RPM_UPSHIFT[currentGear]) {
+    float rpmAdjustmentFactor = TRANS_RATIOS[currentGear] / TRANS_RATIOS[currentGear + 1];
+    currentRPM /= rpmAdjustmentFactor; // Adjust RPM based on the change in gear ratio
+    currentGear++;
+  }
+  
+  // Decrease gear
+  if (currentGear < 5 && currentRPM < RPM_DOWNSHIFT[currentGear] && currentGear > 0) {
+    float rpmAdjustmentFactor = TRANS_RATIOS[currentGear] / TRANS_RATIOS[currentGear - 1];
+    currentRPM /= rpmAdjustmentFactor; // Adjust RPM based on the change in gear ratio
+    currentGear--;
+  }
+
+  // Special case for upshifting from neutral
+  if (currentGear == 6 && currentRPM > RPM_UPSHIFT[6]) {
+    currentGear = 0;
+  }
 }
 
 // ==================== Display Functions Specific for Car ====================
