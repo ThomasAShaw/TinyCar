@@ -2,6 +2,7 @@
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
 
+// Pin Definitions
 #define HEADLIGHTS 3
 #define BRAKELIGHTS 4
 #define LEFT_SIGNAL_LIGHT 5
@@ -17,22 +18,18 @@
 #define TFT_CS 10
 #define TFT_RST 8
 
+// Timing Constants
 #define SIGNAL_TIMING_MS 750
 #define PEDAL_TIMING_MS 100
 #define FUEL_TIMING_MS 1000
 #define ODOMETER_TIMING_MS 1000
-#define DEBOUNCE_DELAY 50
+#define DEBOUNCE_DELAY_MS 50
 
+// Other Useful Constants
 #define PI 3.14159
 #define CM_IN_KM 100000
 
-enum HeadlightState {
-  HEADLIGHTS_OFF,
-  HEADLIGHTS_LOW,
-  HEADLIGHTS_HIGH
-};
-
-// Car-specific stats - potential FIXME
+// Car Characteristics/Constants (change me to change how the vehicle behaves)
 const float MAX_SPEED = 250.0;
 const float IDLE_RPM = 800.0;
 const float MAX_RPM = 9000.0;
@@ -45,22 +42,39 @@ const float TIRE_DIAMETER_CM = 60.1;
 const float RPM_FUEL_FACTOR = 100.0 / (60.0 * 30.0 * 1000.0 * 1000.0); // at 1000RPM, takes 30 mins to deplete fuel.
 const float SPEED_DISTANCE_MULTIPLER = 10.0; // Odometer goes up 10x faster than realistic to show more visuals
 
-// Display constants
+// Display Position Constants
 const uint16_t SCREEN_CENTRE_X = 160;
 const uint16_t SCREEN_CENTRE_Y = 120;
-const uint16_t GAUGE_OUTER_RADIUS = 65;
-const uint16_t GAUGE_CENTRE_RADIUS = 28;
 const uint16_t SPEEDO_CENTRE_X = SCREEN_CENTRE_X - GAUGE_OUTER_RADIUS - 20;
 const uint16_t SPEEDO_CENTRE_Y = SCREEN_CENTRE_Y - 20;
 const uint16_t TACHO_CENTRE_X = SCREEN_CENTRE_X + GAUGE_OUTER_RADIUS + 20;
 const uint16_t TACHO_CENTRE_Y = SCREEN_CENTRE_Y - 20;
-const uint16_t TICK_LENGTH = 7;
-const uint16_t NEEDLE_BASE_WIDTH = 6;
-const uint16_t TICK_LABEL_OFFSET = 10;
+const uint16_t HAZARD_SIGNAL_X = SCREEN_CENTRE_X;
+const uint16_t HAZARD_SIGNAL_Y = SCREEN_CENTRE_Y - 73;
+const uint16_t LEFT_SIGNAL_X = SCREEN_CENTRE_X - 2 * (SIGNAL_SIZE + 6);
+const uint16_t LEFT_SIGNAL_Y = HAZARD_SIGNAL_Y;
+const uint16_t RIGHT_SIGNAL_X = SCREEN_CENTRE_X + 2 * (SIGNAL_SIZE + 6);
+const uint16_t RIGHT_SIGNAL_Y = HAZARD_SIGNAL_Y;
+const uint16_t FUEL_BAR_X = SCREEN_CENTRE_X - 2 * (FUEL_BAR_SIZE + 2) - FUEL_BAR_SIZE / 2;
+const uint16_t FUEL_BAR_Y = SCREEN_CENTRE_Y - 54;
+const uint16_t FUEL_ICON_X = SCREEN_CENTRE_X - 7;
+const uint16_t FUEL_ICON_Y = FUEL_BAR_Y + 10;
+const uint16_t LIGHT_ICON_X = SCREEN_CENTRE_X;
+const uint16_t LIGHT_ICON_Y = SCREEN_CENTRE_Y - 8;
+const uint16_t ODOMETER_X = SCREEN_CENTRE_X - 16;
+const uint16_t ODOMETER_Y = SCREEN_CENTRE_Y + 14;
 
-const uint16_t TICK_TEXT_SIZE = 1;
+// Display Size Constants
+const uint16_t GAUGE_OUTER_RADIUS = 65;
+const uint16_t GAUGE_CENTRE_RADIUS = 28;
 const uint16_t GAUGE_BOTTOM_OFFSET_ANGLE = 30; // degrees
+const uint16_t SIGNAL_SIZE = 10;  // Size of the arrow signals
+const uint16_t FUEL_BAR_SIZE = 6;
+const uint16_t TICK_TEXT_SIZE = 1;
+const uint16_t TICK_LENGTH = 7;
+const uint16_t TICK_LABEL_OFFSET = 10; // FIXME?
 
+// Display Colour Constants
 const uint16_t GAUGE_PRIMARY_COLOUR = 0xd6da;
 const uint16_t GAUGE_SECONDARY_COLOUR = 0x071f;
 const uint16_t GAUGE_MIDDLE_COLOUR = 0x00a7;
@@ -76,26 +90,16 @@ const uint16_t GREYED_OUT_COLOUR = 0x016f;
 const uint16_t HEADLIGHTS_ON_COLOUR = 0x07e0;
 const uint16_t HIGHBEAMS_ON_COLOUR = 0x071f;
 
-const uint16_t SIGNAL_SIZE = 10;  // Size of the arrow signals
-const uint16_t HAZARD_SIGNAL_X = SCREEN_CENTRE_X;
-const uint16_t HAZARD_SIGNAL_Y = SCREEN_CENTRE_Y - 73;
-const uint16_t LEFT_SIGNAL_X = SCREEN_CENTRE_X - 2 * (SIGNAL_SIZE + 6);
-const uint16_t LEFT_SIGNAL_Y = HAZARD_SIGNAL_Y;
-const uint16_t RIGHT_SIGNAL_X = SCREEN_CENTRE_X + 2 * (SIGNAL_SIZE + 6);
-const uint16_t RIGHT_SIGNAL_Y = HAZARD_SIGNAL_Y;
-const uint16_t FUEL_BAR_SIZE = 6;
-const uint16_t FUEL_BAR_X = SCREEN_CENTRE_X - 2 * (FUEL_BAR_SIZE + 2) - FUEL_BAR_SIZE / 2;
-const uint16_t FUEL_BAR_Y = SCREEN_CENTRE_Y - 54;
-const uint16_t FUEL_ICON_X = SCREEN_CENTRE_X - 7;
-const uint16_t FUEL_ICON_Y = FUEL_BAR_Y + 10;
-const uint16_t LIGHT_ICON_X = SCREEN_CENTRE_X;
-const uint16_t LIGHT_ICON_Y = SCREEN_CENTRE_Y - 8;
-const uint16_t ODOMETER_X = SCREEN_CENTRE_X - 16;
-const uint16_t ODOMETER_Y = SCREEN_CENTRE_Y + 14;
+enum HeadlightState {
+  HEADLIGHTS_OFF,
+  HEADLIGHTS_LOW,
+  HEADLIGHTS_HIGH
+};
 
-bool hazardsToggledOn = false;
-bool leftSignalSwitchOn = false;
-bool rightSignalSwitchOn = false;
+// Global Variables
+bool hazardsToggledOn = false; // REMOVE ME!
+bool leftSignalSwitchOn = false; // REMOVE ME!
+bool rightSignalSwitchOn = false; // REMOVE ME!
 bool signalLightsOn = false;
 bool hazardButtonState = HIGH;
 unsigned long lastDebounceTimeHazards = 0;
@@ -168,8 +172,8 @@ void setupScreen(void) {
   tft.fillRect(ODOMETER_X - 42, ODOMETER_Y - 5, 116, 26, MIDDLE_BACKGROUND_COLOUR);
   tft.fillRect(LIGHT_ICON_X - 24, LIGHT_ICON_Y - 13, 60, 27, MIDDLE_BACKGROUND_COLOUR);
 
-  drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed);
-  drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000);
+  drawGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, MAX_SPEED, 20, currentSpeed);
+  drawGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, MAX_RPM / 1000, 1, currentRPM / 1000);
 
   // Tachometer RPM text
   tft.setTextSize(1);
@@ -239,7 +243,7 @@ void updateFuelLevel() {
 }
 
 void updateSpeedometer(void) {
-  updateGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_SPEED, 20, currentSpeed, oldSpeed);
+  updateGauge(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, MAX_SPEED, 20, currentSpeed, oldSpeed);
   
   // Update inner circle
   tft.drawCircle(SPEEDO_CENTRE_X, SPEEDO_CENTRE_Y, GAUGE_CENTRE_RADIUS, GAUGE_PRIMARY_COLOUR);
@@ -284,7 +288,7 @@ void updateSpeedometer(void) {
 }
 
 void updateTachometer(void) {
-  updateGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, NEEDLE_BASE_WIDTH, MAX_RPM / 1000, 1, currentRPM / 1000, oldRPM / 1000);
+  updateGauge(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_OUTER_RADIUS, GAUGE_CENTRE_RADIUS, MAX_RPM / 1000, 1, currentRPM / 1000, oldRPM / 1000);
   
   // Update inner circle
   tft.drawCircle(TACHO_CENTRE_X, TACHO_CENTRE_Y, GAUGE_CENTRE_RADIUS, GAUGE_PRIMARY_COLOUR);
@@ -487,7 +491,7 @@ void handleTurnSignals(void) {
   }
 }
 
-void readSignalInputs(void) {
+void readTurnSignalInputs(void) {
   // Individual switches
   leftSignalSwitchOn = digitalRead(LEFT_SIGNAL_SWITCH) == LOW;
   rightSignalSwitchOn = digitalRead(RIGHT_SIGNAL_SWITCH) == LOW;
@@ -495,7 +499,7 @@ void readSignalInputs(void) {
   // Hazard light button reading (press toggles it)
   bool hazardButtonReading = digitalRead(HAZARDS_BUTTON);
 
-  if (hazardButtonState != hazardButtonReading && (millis() - lastDebounceTimeHazards > DEBOUNCE_DELAY)) {
+  if (hazardButtonState != hazardButtonReading && (millis() - lastDebounceTimeHazards > DEBOUNCE_DELAY_MS)) {
     lastDebounceTimeHazards = millis();
     hazardButtonState = hazardButtonReading;
 
@@ -564,7 +568,7 @@ void handlePedals(void) {
 
 // Display Functions
 // Initial drawing of gauge
-void drawGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int needleWidth, int maxValue, int majorTickIncrement, float currentValue) {
+void drawGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int maxValue, int majorTickIncrement, float currentValue) {
   // Draw gauge (no needle)
   tft.fillCircle(gaugeX, gaugeY, outerRadius, GAUGE_SECONDARY_COLOUR);
   tft.fillCircle(gaugeX, gaugeY, outerRadius - 2, BACKGROUND_COLOUR);
@@ -589,18 +593,18 @@ void drawGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int ne
 
   // Draw needle with currentValue
   int currentAngle = mapFloat(currentValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, NEEDLE_COLOUR, currentAngle);
   
 
   // Draw inner circle
   //tft.drawCircle(gaugeX, gaugeY, innerRadius, GAUGE_PRIMARY_COLOUR);
 }
 
-void updateGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int needleWidth, int maxValue, int majorTickIncrement, float currentValue, float oldValue) {
+void updateGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int maxValue, int majorTickIncrement, float currentValue, float oldValue) {
   // Clear old needle
   int innerRadius = outerRadius - 7; // Radius of circle for ticks
   float oldAngle = mapFloat(oldValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, BACKGROUND_COLOUR, oldAngle);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, BACKGROUND_COLOUR, oldAngle);
   tft.setTextColor(GAUGE_PRIMARY_COLOUR, BACKGROUND_COLOUR);
 
   // Redraw covered part of gauge
@@ -628,7 +632,7 @@ void updateGauge(int gaugeX, int gaugeY, int outerRadius, int centreRadius, int 
 
   // Draw needle with currentValue
   float currentAngle = mapFloat(currentValue, 0, maxValue, 90 + GAUGE_BOTTOM_OFFSET_ANGLE, 450 - GAUGE_BOTTOM_OFFSET_ANGLE);
-  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, needleWidth, NEEDLE_COLOUR, currentAngle);
+  drawNeedle(gaugeX, gaugeY, innerRadius - 4, centreRadius + 2, NEEDLE_COLOUR, currentAngle);
 }
 
 void drawTick(int centreX, int centreY, int radius, int angle, int length, int colour, bool showLabel, int labelValue) {
@@ -657,7 +661,7 @@ void drawTick(int centreX, int centreY, int radius, int angle, int length, int c
   }
 }
 
-void drawNeedle(int centreX, int centreY, int outerRadius, int innerRadius, int width, int colour, float angle) {
+void drawNeedle(int centreX, int centreY, int outerRadius, int innerRadius, int colour, float angle) {
   int innerCentreX = centreX + innerRadius * cos(angle * PI / 180);
   int innerCentreY = centreY + innerRadius * sin(angle * PI / 180);
   int innerX1 = centreX + innerRadius * cos((angle + 3) * PI / 180);
