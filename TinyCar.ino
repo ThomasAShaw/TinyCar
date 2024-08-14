@@ -392,7 +392,7 @@ void handlePedals(void) {
 
     if (currentRPM == IDLE_RPM) {
       currentGear = 6;
-      currentSpeed -= 0.85;
+      currentSpeed = max(0, currentSpeed - 0.85);
       return;
     }
   } else {
